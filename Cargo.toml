@@ -1,0 +1,8 @@
+[package]
+name = "hanabot"
+version = "0.1.0"
+authors = ["Jon Gjengset <jon@thesquareplanet.com>"]
+
+[dependencies]
+slack = "0.19.0"
+rand = "0.3"
