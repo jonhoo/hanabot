@@ -281,6 +281,10 @@ impl Game {
         let to = to.trim_left_matches("<@");
         let to = to.trim_right_matches('>');
 
+        if player == to {
+            return Err(ClueError::NoSuchPlayer);
+        }
+
         let hands = self.hands.len();
         let hand = if let Some(h) = self.hands.iter_mut().find(|hand| &hand.player == to) {
             h
