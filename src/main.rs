@@ -165,30 +165,21 @@ impl slack::EventHandler for Hanabi {
                     ));
                     let _ = cli.sender().send_message(c, &out);
                 } else if t == "help" {
-                    let mut out = String::new();
-                    out.push_str("Oh, so you're confused? I'm so sorry to hear that.");
-                    out.push_str("On your turn, you can `play`, `discard`, or `clue`.");
-                    out.push_str(
-                        "If you `play` or `discard`, \
-                         you must also specify a particular card.",
-                    );
-                    out.push_str(
-                        "You do that using the index from the \
-                         left-hand side, starting at one.",
-                    );
-                    out.push_str(
-                        "To `clue`, you give the player you are cluing (`@player`), \
-                         and the clue you want to give (e.g., `red`, `one`)",
-                    );
-                    out.push_str("To look around, you can use `hands` or `discards`");
-                    out.push_str(
-                        "Or you can use `hand @player` to see what a particular player knows.",
-                    );
-                    out.push_str("If everything goes south, you can use `quit` to give up.");
-                    out.push_str("");
-                    out.push_str(
-                        "If you want more information, go to https://github.com/jonhoo/hanabot",
-                    );
+                    let out = "\
+                               Oh, so you're confused? I'm so sorry to hear that.\n\
+                               \n\
+                               On your turn, you can `play`, `discard`, or `clue`. \
+                               If you `play` or `discard`, you must also specify which card using \
+                               the card's position from the left-hand side, starting at one. \
+                               To `clue`, you give the player you are cluing (`@player`), \
+                               and the clue you want to give (e.g., `red`, `one`).\n\
+                               \n\
+                               To look around, you can use `hands` or `discards`, or you can use \
+                               `hand @player` to see what a particular player knows. \
+                               If everything goes south, you can always use `quit` to give up.\n\
+                               \n\
+                               If you want more information, try \
+                               https://github.com/jonhoo/hanabot.";
                     let _ = cli.sender().send_message(c, &out);
                 } else {
                     match self.playing_users.get(u) {
