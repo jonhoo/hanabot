@@ -345,7 +345,11 @@ impl Game {
 
             if !success {
                 self.lives -= 1;
-                self.last_move = format!("<@{}> played a {} incorrectly", player, card);
+                self.last_move = format!(
+                    "<@{}> played a {} incorrectly :right_anger_bubble:",
+                    player,
+                    card
+                );
                 self.discard.push(card);
                 if self.lives == 0 {
                     return Err(PlayError::GameOver);
