@@ -281,8 +281,8 @@ impl Game {
         // empty line
         let divider = "--------------------------------------------------------------------------";
         for hand in &self.hands {
-            // newline
-            cli.send(&hand.player, " ");
+            // avoid `hanabot: --------------------`
+            cli.send(&hand.player, ":point_down:");
             // spacer
             cli.send(&hand.player, divider);
         }
