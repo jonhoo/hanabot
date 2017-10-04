@@ -438,19 +438,16 @@ impl Game {
             ""
         };
 
-        if self.turn == hand {
-            msg(&format!("It's *your*{} turn", last))
+        let setup = if self.turn == hand {
+            format!("It's *your*{} turn", last)
         } else {
-            msg(&format!(
-                "It's <@{}>'s{} turn",
-                self.hands[hand].player,
-                last
-            ))
-        }
+            format!("It's <@{}>'s{} turn", self.hands[self.turn].player, last)
+        };
 
         // show some states about the general game state
         msg(&format!(
-            "There are *{}* :information_source: and {} :bomb: remaining.",
+            "{}, and there are *{}* :information_source: and {} :bomb: remaining.",
+            setup,
             self.clues,
             self.lives
         ));
