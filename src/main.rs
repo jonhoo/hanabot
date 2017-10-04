@@ -474,12 +474,11 @@ impl Game {
 
         // we want to use attachments to show other players' hands
         // but we can't yet: https://api.slack.com/bot-users#post_messages_and_react_to_users
-        msg("The other players' hands are:");
-        for (i, h) in self.hands.iter().enumerate() {
-            if i == hand {
-                continue;
-            }
-
+        msg("The next players' hands are:");
+        let me = (hand + 1) % self.hands.len();
+        for i in 0..(self.hands.len() - 1) {
+            let i = (me + i) % self.hands.len();
+            let h = &self.hands[i];
             let cards: Vec<_> = h.cards.iter().map(|c| format!("{}", c)).collect();
             msg(&format!("*<@{}>*: {}", h.player, cards.join("  |  ")));
         }
