@@ -485,6 +485,52 @@ impl Game {
         msg("When you have the time, let me know here what move you want to make next!");
     }
 
+    pub fn show_clues(&self, channel: &str, player: &str, cli: &RtmClient) {
+        let p = player.trim_left_matches("<@");
+        let p = p.trim_right_matches('>');
+        let p = self.hands.iter().position(|hand| &hand.player == p);
+
+        if p.is_none() {
+            let _ = cli.sender().send_message(
+                channel,
+                &format!("there is no player in this game named {}", player),
+            );
+            return;
+        }
+
+        let p = p.unwrap();
+        let _ = cli.sender().send_message(
+            channel,
+            &format!(
+                "<@{}> knows the following about their hand:",
+                self.hands[p].player
+            ),
+        );
+        self.show_known(p, channel, cli, false)
+    }
+
+    pub fn show_discards(&self, channel: &str, cli: &RtmClient) {
+        if self.discard.is_empty() {
+            let _ = cli.sender()
+                .send_message(channel, "The discard pile is empty.");
+            return;
+        }
+
+        let _ = cli.sender()
+            .send_message(channel, "The discard pile contains the following cards:");
+        let mut waiting = Vec::new();
+        for card in &self.discard {
+            waiting.push(format!("{}", card));
+            if waiting.len() == 5 {
+                let _ = cli.sender().send_message(channel, &waiting.join(" | "));
+                waiting.clear();
+            }
+        }
+        if !waiting.is_empty() {
+            let _ = cli.sender().send_message(channel, &waiting.join(" | "));
+        }
+    }
+
     pub fn progress_game(&mut self, users: &HashMap<String, String>, cli: &RtmClient) -> bool {
         // empty line
         for hand in &self.hands {
@@ -632,19 +678,41 @@ impl Hanabi {
             return;
         };
 
-        {
-            let current = self.games[&game_id].current_player();
-            if current != user {
-                let _ = cli.sender().send_message(
-                    &self.playing_users[user],
-                    &format!("It's not your turn yet, it's <@{}>'s.", current),
-                );
-                return;
+        let mut command = text.split_whitespace();
+        let cmd = command.next();
+
+        if let Some(cmd) = cmd {
+            if cmd == "play" || cmd == "clue" || cmd == "discard" {
+                let current = self.games[&game_id].current_player();
+                if current != user {
+                    let _ = cli.sender().send_message(
+                        &self.playing_users[user],
+                        &format!("It's not your turn yet, it's <@{}>'s.", current),
+                    );
+                    return;
+                }
             }
         }
 
-        let mut command = text.split_whitespace();
-        match command.next() {
+        match cmd {
+            Some("discards") => {
+                self.games[&game_id].show_discards(&self.playing_users[user], cli);
+            }
+            Some("clues") => {
+                let player = command.next();
+                if player.is_none() || command.next().is_some() {
+                    let _ = cli.sender().send_message(
+                        &self.playing_users[user],
+                        "I believe you are mistaken. \
+                         To view what a person knows about their hand, you just name a player \
+                         (using @playername), and nothing else.",
+                    );
+                    return;
+                }
+                let player = player.unwrap();
+
+                self.games[&game_id].show_clues(&self.playing_users[user], player, cli);
+            }
             Some("clue") => {
                 let player = command.next();
                 let specifier = command.next();
