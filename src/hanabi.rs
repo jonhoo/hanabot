@@ -27,6 +27,14 @@ pub enum Color {
     Yellow,
 }
 
+const COLOR_ORDER: [Color; 5] = [
+    Color::Red,
+    Color::Green,
+    Color::White,
+    Color::Blue,
+    Color::Yellow,
+];
+
 use std::fmt;
 impl fmt::Display for Color {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -180,13 +188,6 @@ impl Default for Deck {
     fn default() -> Self {
         use rand::{thread_rng, Rng};
 
-        let colors = vec![
-            Color::Red,
-            Color::Green,
-            Color::White,
-            Color::Blue,
-            Color::Yellow,
-        ];
         let numbers = vec![
             Number::One,
             Number::One,
@@ -199,9 +200,9 @@ impl Default for Deck {
             Number::Four,
             Number::Five,
         ];
-        let mut cards: Vec<_> = colors
-            .into_iter()
-            .flat_map(|color| {
+        let mut cards: Vec<_> = COLOR_ORDER
+            .iter()
+            .flat_map(|&color| {
                 numbers.iter().map(move |&number| {
                     Card {
                         color,
@@ -221,7 +222,7 @@ pub struct Game {
     deck: Deck,
     hands: Vec<Hand>,
     played: HashMap<Color, Number>,
-    discard: Vec<Card>,
+    discard: HashMap<Color, Vec<Card>>,
     last_move: String,
     clues: usize,
     lives: usize,
@@ -255,7 +256,7 @@ impl Game {
             hands,
             deck,
             played: Default::default(),
-            discard: Vec::new(),
+            discard: Default::default(),
             last_move: String::new(),
             clues: 8,
             lives: 3,
@@ -320,14 +321,23 @@ impl Game {
         }
     }
 
+    fn discarded(&mut self, card: Card) {
+        // insert into sorted discard list for that color
+        let mut d = self.discard.entry(card.color).or_insert_with(Vec::new);
+        let pos = d.binary_search_by_key(&card.number.as_usize(), |c| c.number.as_usize())
+            .unwrap_or_else(|e| e);
+        d.insert(pos, card);
+    }
+
     pub(crate) fn play(&mut self, player: &str, card: usize) -> Result<(), PlayError> {
         let hands = self.hands.len();
         let hand = self.hands
             .iter_mut()
-            .find(|hand| &hand.player == player)
+            .position(|hand| &hand.player == player)
             .unwrap();
-        if let Some(card) = hand.remove(card) {
-            if !hand.draw(&mut self.deck) && self.last_turns.is_none() {
+        if let Some(card) = self.hands.get_mut(hand).unwrap().remove(card) {
+            if !self.hands.get_mut(hand).unwrap().draw(&mut self.deck) && self.last_turns.is_none()
+            {
                 self.last_turns = Some(0);
             }
 
@@ -361,7 +371,9 @@ impl Game {
                     player,
                     card
                 );
-                self.discard.push(card);
+
+                self.discarded(card);
+
                 if self.lives == 0 {
                     return Err(PlayError::GameOver);
                 }
@@ -390,15 +402,16 @@ impl Game {
         let hands = self.hands.len();
         let hand = self.hands
             .iter_mut()
-            .find(|hand| &hand.player == player)
+            .position(|hand| &hand.player == player)
             .unwrap();
 
-        if let Some(card) = hand.remove(card) {
-            if !hand.draw(&mut self.deck) && self.last_turns.is_none() {
+        if let Some(card) = self.hands.get_mut(hand).unwrap().remove(card) {
+            if !self.hands.get_mut(hand).unwrap().draw(&mut self.deck) && self.last_turns.is_none()
+            {
                 self.last_turns = Some(0);
             }
             self.last_move = format!("<@{}> discarded a {}", player, card);
-            self.discard.push(card);
+            self.discarded(card);
             self.clues += 1;
             self.turn = (self.turn + 1) % hands;
             if let Some(ref mut last_turns) = self.last_turns {
@@ -468,14 +481,9 @@ impl Game {
             ),
         );
 
-        let stacks: Vec<_> = [
-            Color::Red,
-            Color::Yellow,
-            Color::White,
-            Color::Green,
-            Color::Blue,
-        ].into_iter()
-            .map(|color| if let Some(top) = self.played.get(&color) {
+        let stacks: Vec<_> = COLOR_ORDER
+            .iter()
+            .map(|&color| if let Some(top) = self.played.get(&color) {
                 format!("{} {}", color, top)
             } else {
                 format!("{} :zero:", color)
@@ -560,16 +568,14 @@ impl Game {
         }
 
         cli.send(user, "The discard pile contains the following cards:");
-        let mut waiting = Vec::new();
-        for card in &self.discard {
-            waiting.push(format!("{}", card));
-            if waiting.len() == 5 {
-                cli.send(user, &waiting.join("  |  "));
-                waiting.clear();
+        for color in &COLOR_ORDER {
+            if let Some(cards) = self.discard.get(color) {
+                let mut out = format!("{} ", color);
+                for card in cards {
+                    out.push_str(&format!("{}", card.number));
+                }
+                cli.send(user, &out);
             }
-        }
-        if !waiting.is_empty() {
-            cli.send(user, &waiting.join("  |  "));
         }
     }
 
