@@ -17,11 +17,11 @@ use std::fmt;
 impl fmt::Display for Color {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Color::Red => write!(f, "red"),
-            Color::Green => write!(f, "green"),
-            Color::White => write!(f, "white"),
-            Color::Blue => write!(f, "blue"),
-            Color::Yellow => write!(f, "yellow"),
+            Color::Red => write!(f, ":red_circle:"),
+            Color::Green => write!(f, ":green_apple:"),
+            Color::White => write!(f, ":white_medium_square:"),
+            Color::Blue => write!(f, ":large_blue_diamond:"),
+            Color::Yellow => write!(f, ":yellow_heart:"),
         }
     }
 }
@@ -38,11 +38,11 @@ enum Number {
 impl fmt::Display for Number {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Number::One => write!(f, "one"),
-            Number::Two => write!(f, "two"),
-            Number::Three => write!(f, "three"),
-            Number::Four => write!(f, "four"),
-            Number::Five => write!(f, "five"),
+            Number::One => write!(f, ":one:"),
+            Number::Two => write!(f, ":two:"),
+            Number::Three => write!(f, ":three:"),
+            Number::Four => write!(f, ":four:"),
+            Number::Five => write!(f, ":five:"),
         }
     }
 }
@@ -397,19 +397,49 @@ impl Game {
         }
     }
 
+    fn show_known(&self, hand: usize, channel: &str, cli: &RtmClient, index: bool) {
+        let hand: Vec<_> = self.hands[hand]
+            .cards
+            .iter()
+            .enumerate()
+            .map(|(i, card)| {
+                let know_color = card.clues.iter().any(|&(_, clue)| match clue {
+                    Clue::Color(ref c) => c == &card.color,
+                    _ => false,
+                });
+                let know_number = card.clues.iter().any(|&(_, clue)| match clue {
+                    Clue::Number(ref n) => n == &card.number,
+                    _ => false,
+                });
+
+                let mut desc = match (know_color, know_number) {
+                    (false, false) => format!(":rainbow: :keycap_star:"),
+                    (false, true) => format!(":rainbow: {}", card.number),
+                    (true, false) => format!("{} :keycap_star:", card.color),
+                    (true, true) => format!("{} {}", card.color, card.number),
+                };
+                if index {
+                    desc.push_str(&format!(" ({})", i + 1));
+                }
+                desc
+            })
+            .collect();
+        let _ = cli.sender().send_message(channel, &hand.join(" | "));
+    }
+
     fn print_game_state(&mut self, hand: usize, channel: &str, cli: &RtmClient) {
         let msg = move |m: &str| {
             let _ = cli.sender().send_message(channel, m);
         };
 
         let last = if self.last_turns.is_some() {
-            " last"
+            " *last*"
         } else {
             ""
         };
 
         if self.turn == hand {
-            msg(&format!("It's your{} turn!", last))
+            msg(&format!("It's *your*{} turn", last))
         } else {
             msg(&format!(
                 "It's <@{}>'s{} turn",
@@ -420,24 +450,25 @@ impl Game {
 
         // show some states about the general game state
         msg(&format!(
-            "There are {} clues and {} lives remaining.",
+            "There are *{}* :information_source: and {} :bomb: remaining.",
             self.clues,
             self.lives
         ));
-        msg("Last card played in each color is:");
-        for color in &[
+
+        let stacks: Vec<_> = [
             Color::Red,
             Color::Yellow,
             Color::White,
             Color::Green,
             Color::Blue,
-        ] {
-            if let Some(top) = self.played.get(color) {
-                msg(&format!(" - {} {}", color, top));
+        ].into_iter()
+            .map(|color| if let Some(top) = self.played.get(&color) {
+                format!("{} {}", color, top)
             } else {
-                msg(&format!(" - no {}", color));
-            }
-        }
+                format!("{} :zero:", color)
+            })
+            .collect();
+        msg(&format!("Played: {}", stacks.join(" ")));
 
         // we want to use attachments to show other players' hands
         // but we can't yet: https://api.slack.com/bot-users#post_messages_and_react_to_users
@@ -448,36 +479,22 @@ impl Game {
             }
 
             let cards: Vec<_> = h.cards.iter().map(|c| format!("{}", c)).collect();
-            msg(&format!("*<@{}>*: {}", h.player, cards.join(", ")));
+            msg(&format!("*<@{}>*: {}", h.player, cards.join(" | ")));
         }
 
-        msg("You know the following about your cards, from left to right:");
-        for card in &self.hands[hand].cards {
-            let know_color = card.clues.iter().any(|&(_, clue)| match clue {
-                Clue::Color(ref c) => c == &card.color,
-                _ => false,
-            });
-            let know_number = card.clues.iter().any(|&(_, clue)| match clue {
-                Clue::Number(ref n) => n == &card.number,
-                _ => false,
-            });
-
-            match (know_color, know_number) {
-                (false, false) => msg(" - You know nothing about this card"),
-                (true, false) => msg(&format!(" - You know that this card is {}", card.color)),
-                (false, true) => msg(&format!(" - You know that this card is a {}", card.number)),
-                (true, true) => msg(&format!(
-                    " - You know that this card is a {} {}",
-                    card.color,
-                    card.number
-                )),
-            }
-        }
+        msg("Your hand, as far as you know, is:");
+        self.show_known(hand, channel, cli, true);
 
         msg("When you have the time, let me know here what move you want to make next!");
     }
 
     pub fn progress_game(&mut self, users: &HashMap<String, String>, cli: &RtmClient) -> bool {
+        // empty line
+        for hand in &self.hands {
+            let m = "\n--------------------------------------------------------------------------";
+            let _ = cli.sender().send_message(&users[&hand.player], m);
+        }
+
         if !self.last_move.is_empty() {
             for hand in &self.hands {
                 let mut m = self.last_move
