@@ -555,9 +555,12 @@ impl Game {
 
     pub(crate) fn progress_game(&mut self, cli: &mut super::MessageProxy) -> bool {
         // empty line
+        let divider = "--------------------------------------------------------------------------";
         for hand in &self.hands {
-            let m = " \n--------------------------------------------------------------------------";
-            cli.send(&hand.player, m);
+            // newline
+            cli.send(&hand.player, " ");
+            // spacer
+            cli.send(&hand.player, divider);
         }
 
         if !self.last_move.is_empty() {
@@ -568,6 +571,7 @@ impl Game {
                     m = m.replacen("you", "You", 1);
                 }
                 cli.send(&hand.player, &m);
+                cli.send(&hand.player, divider);
             }
         }
 
