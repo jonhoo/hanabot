@@ -31,12 +31,36 @@ fn dur(start: &mut Instant) -> String {
     }
 }
 
+struct Move {
+    player: usize,
+    for_player: String,
+    for_others: String,
+}
+
+impl Move {
+    pub fn new(player: usize, for_player: String, for_others: String) -> Move {
+        Move {
+            player,
+            for_player,
+            for_others,
+        }
+    }
+
+    pub fn show_to(&self, player: usize) -> &str {
+        if player == self.player {
+            &*self.for_player
+        } else {
+            &*self.for_others
+        }
+    }
+}
+
 pub(crate) struct Game {
     deck: Deck,
     hands: Vec<Hand>,
     played: HashMap<Color, Number>,
     discard: HashMap<Color, Vec<Card>>,
-    last_move: String,
+    last_move: Move,
     last_move_at: Instant,
     clues: usize,
     lives: usize,
@@ -72,7 +96,7 @@ impl Game {
             deck,
             played: Default::default(),
             discard: Default::default(),
-            last_move: String::new(),
+            last_move: Move::new(0, "".to_owned(), "".to_owned()),
             last_move_at: Instant::now(),
             clues: 8,
             lives: 3,
@@ -118,7 +142,7 @@ impl Game {
 
         match hand.clue(&player, clue) {
             Ok(num) => {
-                self.last_move = format!(
+                let did = format!(
                     "<@{}> clued <@{}> that {} {} {} after {}",
                     player,
                     to,
@@ -127,6 +151,7 @@ impl Game {
                     clue,
                     dur(&mut self.last_move_at),
                 );
+                self.last_move = Move::new(self.turn, did.clone(), did);
                 self.clues -= 1;
                 self.turn = (self.turn + 1) % hands;
                 if let Some(ref mut last_turns) = self.last_turns {
@@ -175,8 +200,6 @@ impl Game {
             };
 
             let drew = if self.last_turns.is_none() {
-                // XXX: if you change this, remember to also change
-                // the blinding of what was drawn in progress_game
                 format!(
                     ", and then drew a {}",
                     self.hands[hand].cards.back().unwrap()
@@ -187,13 +210,13 @@ impl Game {
 
             if !success {
                 self.lives -= 1;
-                self.last_move = format!(
-                    "<@{}> incorrectly played a {} after {}{}",
+                let did = format!(
+                    "<@{}> incorrectly played a {} after {}",
                     self.hands[self.turn].player,
                     card,
                     dur(&mut self.last_move_at),
-                    drew,
                 );
+                self.last_move = Move::new(self.turn, did.clone(), format!("{}{}", did, drew));
 
                 self.discarded(card);
 
@@ -201,13 +224,13 @@ impl Game {
                     return Err(PlayError::GameOver);
                 }
             } else {
-                self.last_move = format!(
-                    "<@{}> played a {} after {}{}",
+                let did = format!(
+                    "<@{}> played a {} after {}",
                     self.hands[self.turn].player,
                     card,
                     dur(&mut self.last_move_at),
-                    drew,
                 );
+                self.last_move = Move::new(self.turn, did.clone(), format!("{}{}", did, drew));
             }
 
             self.turn = (self.turn + 1) % hands;
@@ -238,8 +261,6 @@ impl Game {
             }
 
             let drew = if self.last_turns.is_none() {
-                // XXX: if you change this, remember to also change
-                // the blinding of what was drawn in progress_game
                 format!(
                     ", and then drew a {}",
                     self.hands[hand].cards.back().unwrap()
@@ -248,13 +269,14 @@ impl Game {
                 "".to_owned()
             };
 
-            self.last_move = format!(
-                "<@{}> discarded a {} after {}{}",
+            let did = format!(
+                "<@{}> discarded a {} after {}",
                 self.hands[self.turn].player,
                 card,
                 dur(&mut self.last_move_at),
-                drew
             );
+            self.last_move = Move::new(self.turn, did.clone(), format!("{}{}", did, drew));
+
             self.discarded(card);
             self.clues += 1;
             self.turn = (self.turn + 1) % hands;
@@ -344,17 +366,13 @@ impl Game {
             cli.send(&hand.player, divider);
         }
 
-        if !self.last_move.is_empty() {
+        if !self.last_move.show_to(0).is_empty() {
             for (i, hand) in self.hands.iter().enumerate() {
                 let mut m = self.last_move
+                    .show_to(i)
                     .replace(&format!("<@{}>", hand.player), "you");
                 if m.starts_with("you") {
                     m = m.replacen("you", "You", 1);
-                }
-                if (self.turn + self.hands.len() - 1) % self.hands.len() == i {
-                    // we were the last player
-                    // don't show what we drew
-                    m = m.split(", and then drew").next().unwrap().to_owned();
                 }
                 cli.send(&hand.player, &m);
                 cli.send(&hand.player, divider);
