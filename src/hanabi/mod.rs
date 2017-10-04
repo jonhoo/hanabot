@@ -271,6 +271,11 @@ impl Game {
 
     /// Show `user` everything they know about `player`'s hand.
     pub(crate) fn show_hand(&self, user: &str, player: &str, cli: &mut super::MessageProxy) {
+        if user == player {
+            cli.send(user, "Nope, you can't view your own hand...");
+            return;
+        }
+
         let p = self.hands.iter().position(|hand| &hand.player == player);
 
         if p.is_none() {
