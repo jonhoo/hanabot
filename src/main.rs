@@ -445,6 +445,31 @@ impl slack::EventHandler for Hanabi {
                         self.on_join(&mut messages);
                         messages.flush(&self.playing_users);
                     }
+                } else if t == "players" {
+                    let mut out = format!(
+                        "There are currently {} games and {} players:",
+                        self.games.len(),
+                        self.playing_users.len()
+                    );
+                    for (game_id, game) in &self.games {
+                        out.push_str(&format!(
+                            "\n#{}: <@{}>",
+                            game_id,
+                            game.players()
+                                .map(|p| &**p)
+                                .collect::<Vec<_>>()
+                                .join(">, <@")
+                        ));
+                    }
+                    out.push_str(&format!(
+                        "\nWaiting: {}",
+                        self.waiting
+                            .iter()
+                            .map(|p| format!("<@{}>", p))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                    let _ = cli.sender().send_message(c, &out);
                 } else {
                     match self.playing_users.get(u) {
                         Some(uc) if c == uc => {
