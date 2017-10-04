@@ -1016,8 +1016,7 @@ impl slack::EventHandler for Hanabi {
                         }
                         None => {
                             // unknown user made move that wasn't `join`
-                            let _ = cli.sender()
-                                .send_message(c, "<@{}> you need to join before making moves!");
+                            println!("unknown user {} gave command {} in {}", u, t, c);
                             return;
                         }
                     }
