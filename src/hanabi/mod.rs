@@ -175,6 +175,8 @@ impl Game {
             };
 
             let drew = if self.last_turns.is_none() {
+                // XXX: if you change this, remember to also change
+                // the blinding of what was drawn in progress_game
                 format!(
                     ", and then drew a {}",
                     self.hands[hand].cards.back().unwrap()
@@ -330,11 +332,16 @@ impl Game {
         }
 
         if !self.last_move.is_empty() {
-            for hand in &self.hands {
+            for (i, hand) in self.hands.iter().enumerate() {
                 let mut m = self.last_move
                     .replace(&format!("<@{}>", hand.player), "you");
                 if m.starts_with("you") {
                     m = m.replacen("you", "You", 1);
+                }
+                if (self.turn + self.hands.len() - 1) % self.hands.len() == i {
+                    // we were the last player
+                    // don't show what we drew
+                    m = m.split(", and then drew").next().unwrap().to_owned();
                 }
                 cli.send(&hand.player, &m);
                 cli.send(&hand.player, divider);
