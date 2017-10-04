@@ -483,33 +483,49 @@ impl Game {
             .collect();
         cli.send(user, &format!("Played: {}", stacks.join(" ")));
 
-        // we want to use attachments to show other players' hands
-        // but we can't yet: https://api.slack.com/bot-users#post_messages_and_react_to_users
-        cli.send(user, "The next players' hands are:");
-        for i in 0..self.hands.len() {
-            let i = (self.turn + i) % self.hands.len();
-            let h = &self.hands[i];
-
-            if i == hand {
-                // people don't get to see their own hand, but we still want to show their turn
-                cli.send(&user, &format!("*<@{}>*: _that's you!_", h.player));
-            } else {
-                let cards: Vec<_> = h.cards.iter().map(|c| format!("{}", c)).collect();
-                cli.send(
-                    &user,
-                    &format!("*<@{}>*: {}", h.player, cards.join("  |  ")),
-                );
-            }
-        }
-
-        cli.send(user, "Your hand, as far as you know, is:");
-        self.show_known(hand, user, cli, true);
-
         if self.turn == hand {
+            // it is our turn.
+            // show what we know about our hand, and the hands of the following players
+
+            cli.send(user, "Your hand, as far as you know, is:");
+            self.show_known(hand, user, cli, true);
+
+            // we want to use attachments to show other players' hands
+            // but we can't yet: https://api.slack.com/bot-users#post_messages_and_react_to_users
+            cli.send(user, "The next players' hands are:");
+            for i in 0..(self.hands.len() - 1) {
+                let i = (self.turn + i) % self.hands.len();
+                let h = &self.hands[i];
+
+                if i == hand {
+                    // people don't get to see their own hand, but we still want to show their turn
+                    cli.send(&user, &format!("*<@{}>*: _that's you!_", h.player));
+                } else {
+                    let cards: Vec<_> = h.cards.iter().map(|c| format!("{}", c)).collect();
+                    cli.send(
+                        &user,
+                        &format!("*<@{}>*: {}", h.player, cards.join("  |  ")),
+                    );
+                }
+            }
+
             cli.send(
                 user,
                 "When you have the time, let me know here what move you want to make next!",
             );
+        } else {
+            // it is *not* our turn.
+            // we want to show the hand of the current player, and what they know.
+            cli.send(user, "The current player's hand is:");
+            let cards: Vec<_> = self.hands[self.turn]
+                .cards
+                .iter()
+                .map(|c| format!("{}", c))
+                .collect();
+            cli.send(&user, &format!("{}", cards.join("  |  ")));
+
+            cli.send(user, "They know the following about their hand:");
+            self.show_known(self.turn, user, cli, false);
         }
     }
 
