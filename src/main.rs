@@ -384,6 +384,7 @@ impl Game {
             }
             self.last_move = format!("<@{}> discarded a {}", player, card);
             self.discard.push(card);
+            self.clues += 1;
             self.turn = (self.turn + 1) % hands;
             if let Some(ref mut last_turns) = self.last_turns {
                 *last_turns += 1;
