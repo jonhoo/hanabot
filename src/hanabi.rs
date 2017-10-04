@@ -323,7 +323,7 @@ impl Game {
 
     fn discarded(&mut self, card: Card) {
         // insert into sorted discard list for that color
-        let mut d = self.discard.entry(card.color).or_insert_with(Vec::new);
+        let d = self.discard.entry(card.color).or_insert_with(Vec::new);
         let pos = d.binary_search_by_key(&card.number.as_usize(), |c| c.number.as_usize())
             .unwrap_or_else(|e| e);
         d.insert(pos, card);
