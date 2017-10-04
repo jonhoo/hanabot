@@ -264,7 +264,6 @@ impl Game {
 
         cli.send(user, "The other players' hands are:");
         for i in 1..self.hands.len() {
-            let i = (me + i) % self.hands.len();
             self.show_hand_inner((me + i) % self.hands.len(), user, cli, true);
         }
     }
