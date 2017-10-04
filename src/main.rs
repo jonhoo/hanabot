@@ -645,6 +645,16 @@ impl Hanabi {
         {
             // game has ended
             let game = self.games.remove(&game_id).unwrap();
+
+            println!(
+                "game #{} ended with score {}/25",
+                game_id,
+                game.played
+                    .iter()
+                    .map(|(_, num)| num.as_usize())
+                    .sum::<usize>()
+            );
+
             for hand in game.hands {
                 self.in_game.remove(&hand.player);
                 self.waiting.push_back(hand.player);
@@ -909,6 +919,14 @@ impl Hanabi {
         let game_id = self.ngames;
         self.ngames += 1;
         self.games.insert(game_id, game);
+
+        println!(
+            "starting game #{} with {} users: {:?}",
+            game_id,
+            players.len(),
+            players
+        );
+
         for p in &players {
             let others: Vec<_> = players
                 .iter()
@@ -980,7 +998,7 @@ impl slack::EventHandler for Hanabi {
                     if t == "join" {
                         // some poor user tried to join -- help them out
                         let _ = cli.sender()
-                            .send_message(c, &format!("<@{}> please send me a DM instead", u));
+                            .send_message(c, &format!("<@{}> please dm me instead", u));
                     }
                     return;
                 }
@@ -990,7 +1008,7 @@ impl slack::EventHandler for Hanabi {
                     if c == &self.channel {
                         // we need to know the DM channel ID, so force the user to DM us
                         let _ = cli.sender()
-                            .send_message(c, &format!("<@{}> please send me a DM instead", u));
+                            .send_message(c, &format!("<@{}> please dm me instead", u));
                     } else if self.playing_users.insert(u.clone(), c.clone()).is_none() {
                         let _ = cli.sender().send_message(
                             c,
@@ -1051,10 +1069,7 @@ impl slack::EventHandler for Hanabi {
             .and_then(|groups| {
                 groups.iter().find(|group| match group.name {
                     None => false,
-                    Some(ref name) => {
-                        println!("{}", name);
-                        name == "hanabi"
-                    }
+                    Some(ref name) => name == "hanabi",
                 })
             })
             .and_then(|group| group.id.as_ref());
@@ -1068,6 +1083,7 @@ impl slack::EventHandler for Hanabi {
         match channel.or(group) {
             None => panic!("#hanabi not found"),
             Some(channel) => {
+                println!("joined channel {}", channel);
                 let _ = cli.sender().send_message(
                     &channel,
                     "Hanabi bot is now available! :tada:\nSend me the message 'join' to join a game.",
