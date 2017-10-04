@@ -164,6 +164,31 @@ impl slack::EventHandler for Hanabi {
                             .join(", ")
                     ));
                     let _ = cli.sender().send_message(c, &out);
+                } else if t == "help" {
+                    let mut out = String::new();
+                    out.push_str("Oh, so you're confused? I'm so sorry to hear that.");
+                    out.push_str("On your turn, you can `play`, `discard`, or `clue`.");
+                    out.push_str(
+                        "If you `play` or `discard`, \
+                         you must also specify a particular card.",
+                    );
+                    out.push_str(
+                        "You do that using the index from the \
+                         left-hand side, starting at one.",
+                    );
+                    out.push_str(
+                        "To `clue`, you give the player you are cluing (`@player`), \
+                         and the clue you want to give (e.g., `red`, `one`)",
+                    );
+                    out.push_str("To look around, you can use `hands` or `discards`");
+                    out.push_str(
+                        "Or you can use `hand @player` to see what a particular player knows.",
+                    );
+                    out.push_str("If everything goes south, you can use `quit` to give up.");
+                    out.push_str("");
+                    out.push_str(
+                        "If you want more information, go to https://github.com/jonhoo/hanabot",
+                    );
                 } else {
                     match self.playing_users.get(u) {
                         Some(uc) if c == uc => {
@@ -428,39 +453,6 @@ impl Hanabi {
                     );
                 }
                 self.end_game(game_id, msgs);
-            }
-            Some("help") => {
-                msgs.send(user, "Oh, so you're confused? I'm so sorry to hear that.");
-                msgs.send(user, "On your turn, you can `play`, `discard`, or `clue`.");
-                msgs.send(
-                    user,
-                    "If you `play` or `discard`, \
-                     you must also specify a particular card.",
-                );
-                msgs.send(
-                    user,
-                    "You do that using the index from the \
-                     left-hand side, starting at one.",
-                );
-                msgs.send(
-                    user,
-                    "To `clue`, you give the player you are cluing (`@player`), \
-                     and the clue you want to give (e.g., `red`, `one`)",
-                );
-                msgs.send(user, "To look around, you can use `hands` or `discards`");
-                msgs.send(
-                    user,
-                    "Or you can use `hand @player` to see what a particular player knows.",
-                );
-                msgs.send(
-                    user,
-                    "If everything goes south, you can use `quit` to give up.",
-                );
-                msgs.send(user, "");
-                msgs.send(
-                    user,
-                    "If you want more information, go to https://github.com/jonhoo/hanabot",
-                );
             }
             Some("discards") => {
                 self.games[&game_id].show_discards(user, msgs);
