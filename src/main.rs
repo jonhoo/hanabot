@@ -79,10 +79,14 @@ impl slack::EventHandler for Hanabi {
             None => panic!("#hanabi not found"),
             Some(channel) => {
                 println!("joined channel {}", channel);
-                let _ = cli.sender().send_message(
-                    &channel,
-                    "Hanabi bot is now available! :tada:\nSend me the message 'join' to join a game.",
-                );
+                if self.ngames == 0 && self.waiting.is_empty() {
+                    // we must be starting for the first time
+                    let _ = cli.sender().send_message(
+                        &channel,
+                        "Hanabi bot is now available! :tada:\n\
+                         Send me the message 'join' to join a game.",
+                    );
+                }
                 self.channel = channel.clone();
             }
         }
