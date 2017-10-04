@@ -189,6 +189,7 @@ impl slack::EventHandler for Hanabi {
                     out.push_str(
                         "If you want more information, go to https://github.com/jonhoo/hanabot",
                     );
+                    let _ = cli.sender().send_message(c, &out);
                 } else {
                     match self.playing_users.get(u) {
                         Some(uc) if c == uc => {
