@@ -380,7 +380,7 @@ impl Hanabi {
                 // *could* start a game if the users don't want to wait
                 let message = format!(
                     "I have {} other available players, so we *could* start a game.\n\
-                     If you'd like to do so instead of waiting for five players,\
+                     If you'd like to do so instead of waiting for five players, \
                      just send me the message `start`.",
                     self.waiting.len() - 1
                 );
