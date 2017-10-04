@@ -501,10 +501,12 @@ impl Game {
         cli.send(user, "Your hand, as far as you know, is:");
         self.show_known(hand, user, cli, true);
 
-        cli.send(
-            user,
-            "When you have the time, let me know here what move you want to make next!",
-        );
+        if self.turn == hand {
+            cli.send(
+                user,
+                "When you have the time, let me know here what move you want to make next!",
+            );
+        }
     }
 
     pub(crate) fn show_clues(&self, user: &str, player: &str, cli: &mut super::MessageProxy) {
