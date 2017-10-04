@@ -295,10 +295,11 @@ impl Game {
         match hand.clue(player, clue) {
             Ok(num) => {
                 self.last_move = format!(
-                    "<@{}> clued <@{}> about {} {} card(s)",
+                    "<@{}> clued <@{}> that {} {} {}",
                     player,
                     to,
                     num,
+                    if num == 1 { "card is" } else { "cards are" },
                     clue
                 );
                 self.clues -= 1;
@@ -479,8 +480,11 @@ impl Game {
     pub fn progress_game(&mut self, users: &HashMap<String, String>, cli: &RtmClient) -> bool {
         if !self.last_move.is_empty() {
             for hand in &self.hands {
-                let m = self.last_move
+                let mut m = self.last_move
                     .replace(&format!("<@{}>", hand.player), "you");
+                if m.starts_with("you") {
+                    m = m.replacen("you", "You", 1);
+                }
                 let _ = cli.sender().send_message(&users[&hand.player], &m);
             }
         }
