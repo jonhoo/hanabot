@@ -420,7 +420,7 @@ impl Game {
                     (true, true) => format!("{} {}", card.color, card.number),
                 };
                 if index {
-                    desc.push_str(&format!(" ({})", i + 1));
+                    desc = format!("{}: {}", i + 1, desc);
                 }
                 desc
             })
@@ -535,7 +535,7 @@ impl Game {
     pub fn progress_game(&mut self, users: &HashMap<String, String>, cli: &RtmClient) -> bool {
         // empty line
         for hand in &self.hands {
-            let m = "\n--------------------------------------------------------------------------";
+            let m = " \n--------------------------------------------------------------------------";
             let _ = cli.sender().send_message(&users[&hand.player], m);
         }
 
