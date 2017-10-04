@@ -255,8 +255,22 @@ impl Game {
         }
     }
 
-    /// Show `user` everything that is publicly known about `player`'s hand.
-    pub(crate) fn show_clues(&self, user: &str, player: &str, cli: &mut super::MessageProxy) {
+    /// Show `user` every other player's hand.
+    pub(crate) fn show_hands(&self, user: &str, cli: &mut super::MessageProxy) {
+        let me = self.hands
+            .iter()
+            .position(|hand| &hand.player == user)
+            .unwrap();
+
+        cli.send(user, "The other players' hands are:");
+        for i in 1..self.hands.len() {
+            let i = (me + i) % self.hands.len();
+            self.show_hand_inner((me + i) % self.hands.len(), user, cli);
+        }
+    }
+
+    /// Show `user` everything they know about `player`'s hand.
+    pub(crate) fn show_hand(&self, user: &str, player: &str, cli: &mut super::MessageProxy) {
         let p = self.hands.iter().position(|hand| &hand.player == player);
 
         if p.is_none() {
@@ -268,14 +282,11 @@ impl Game {
         }
 
         let p = p.unwrap();
-        cli.send(
-            user,
-            &format!(
-                "<@{}> knows the following about their hand:",
-                self.hands[p].player
-            ),
-        );
-        self.show_known(p, user, cli, false)
+
+        cli.send(user, "Their hand is:");
+        self.show_hand_inner(p, user, cli);
+        cli.send(user, "They know the following:");
+        self.show_known(p, user, cli, false);
     }
 
     /// Show `user` the current state of the discard pile.
@@ -404,6 +415,19 @@ impl Game {
         cli.send(user, &hand.join("  |  "));
     }
 
+    /// Show `user` the hand of `player`.
+    fn show_hand_inner(&self, hand: usize, user: &str, cli: &mut super::MessageProxy) {
+        let cards: Vec<_> = self.hands[hand]
+            .cards
+            .iter()
+            .map(|c| format!("{}", c))
+            .collect();
+        cli.send(
+            user,
+            &format!("*<@{}>*: {}", self.hands[hand].player, cards.join("  |  ")),
+        );
+    }
+
     /// Show the `hand`'th player the current game state.
     ///
     /// Note that the information displayed depends on whether or not it is `hand`'s turn.
@@ -454,13 +478,7 @@ impl Game {
             cli.send(user, "The next players' hands are:");
             for i in 1..self.hands.len() {
                 let i = (self.turn + i) % self.hands.len();
-                let h = &self.hands[i];
-
-                let cards: Vec<_> = h.cards.iter().map(|c| format!("{}", c)).collect();
-                cli.send(
-                    &user,
-                    &format!("*<@{}>*: {}", h.player, cards.join("  |  ")),
-                );
+                self.show_hand_inner((self.turn + i) % self.hands.len(), user, cli);
             }
 
             cli.send(

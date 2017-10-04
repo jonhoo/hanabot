@@ -432,7 +432,10 @@ impl Hanabi {
             Some("discards") => {
                 self.games[&game_id].show_discards(user, msgs);
             }
-            Some("clues") => {
+            Some("hands") => {
+                self.games[&game_id].show_hands(user, msgs);
+            }
+            Some("hand") => {
                 let player = command.next();
                 if player.is_none() || command.next().is_some() {
                     msgs.send(
@@ -447,7 +450,7 @@ impl Hanabi {
                 let player = player.trim_left_matches("<@");
                 let player = player.trim_right_matches('>');
 
-                self.games[&game_id].show_clues(user, player, msgs);
+                self.games[&game_id].show_hand(user, player, msgs);
             }
             Some("clue") => {
                 let player = command.next();
