@@ -236,11 +236,24 @@ impl Game {
             {
                 self.last_turns = Some(0);
             }
+
+            let drew = if self.last_turns.is_none() {
+                // XXX: if you change this, remember to also change
+                // the blinding of what was drawn in progress_game
+                format!(
+                    ", and then drew a {}",
+                    self.hands[hand].cards.back().unwrap()
+                )
+            } else {
+                "".to_owned()
+            };
+
             self.last_move = format!(
-                "<@{}> discarded a {} after {}",
+                "<@{}> discarded a {} after {}{}",
                 self.hands[self.turn].player,
                 card,
-                dur(&mut self.last_move_at)
+                dur(&mut self.last_move_at),
+                drew
             );
             self.discarded(card);
             self.clues += 1;
