@@ -501,20 +501,15 @@ impl Game {
             // we want to use attachments to show other players' hands
             // but we can't yet: https://api.slack.com/bot-users#post_messages_and_react_to_users
             cli.send(user, "The next players' hands are:");
-            for i in 0..(self.hands.len() - 1) {
+            for i in 1..self.hands.len() {
                 let i = (self.turn + i) % self.hands.len();
                 let h = &self.hands[i];
 
-                if i == hand {
-                    // people don't get to see their own hand, but we still want to show their turn
-                    cli.send(&user, &format!("*<@{}>*: _that's you!_", h.player));
-                } else {
-                    let cards: Vec<_> = h.cards.iter().map(|c| format!("{}", c)).collect();
-                    cli.send(
-                        &user,
-                        &format!("*<@{}>*: {}", h.player, cards.join("  |  ")),
-                    );
-                }
+                let cards: Vec<_> = h.cards.iter().map(|c| format!("{}", c)).collect();
+                cli.send(
+                    &user,
+                    &format!("*<@{}>*: {}", h.player, cards.join("  |  ")),
+                );
             }
 
             cli.send(
