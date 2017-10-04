@@ -1002,8 +1002,7 @@ fn main() {
     };
 
     let mut handler = Hanabi::default();
-    if let Err(e) = RtmClient::login_and_run(&api_key, &mut handler) {
-        eprintln!("Failed to run: {}", e);
-        std::process::exit(2);
+    while let Err(e) = RtmClient::login_and_run(&api_key, &mut handler) {
+        eprintln!("Error while running: {}", e);
     }
 }
