@@ -429,6 +429,39 @@ impl Hanabi {
                 }
                 self.end_game(game_id, msgs);
             }
+            Some("help") => {
+                msgs.send(user, "Oh, so you're confused? I'm so sorry to hear that.");
+                msgs.send(user, "On your turn, you can `play`, `discard`, or `clue`.");
+                msgs.send(
+                    user,
+                    "If you `play` or `discard`, \
+                     you must also specify a particular card.",
+                );
+                msgs.send(
+                    user,
+                    "You do that using the index from the \
+                     left-hand side, starting at one.",
+                );
+                msgs.send(
+                    user,
+                    "To `clue`, you give the player you are cluing (`@player`), \
+                     and the clue you want to give (e.g., `red`, `one`)",
+                );
+                msgs.send(user, "To look around, you can use `hands` or `discards`");
+                msgs.send(
+                    user,
+                    "Or you can use `hand @player` to see what a particular player knows.",
+                );
+                msgs.send(
+                    user,
+                    "If everything goes south, you can use `quit` to give up.",
+                );
+                msgs.send(user, "");
+                msgs.send(
+                    user,
+                    "If you want more information, go to https://github.com/jonhoo/hanabot",
+                );
+            }
             Some("discards") => {
                 self.games[&game_id].show_discards(user, msgs);
             }
