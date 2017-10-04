@@ -56,5 +56,7 @@ hand.
  - No support for playing with the rainbow suit.
  - No support for playing with character cards.
  - No long-term statistics tracking.
+ - No support for quitting a game (which would end it).
+ - No support for players "unjoining".
 
 All of these are fixable. PRs are welcome.

@@ -1,32 +1,11 @@
-use std::collections::{HashMap, LinkedList};
+use std::collections::HashMap;
 
-pub enum ClueError {
-    NoSuchPlayer,
-    NoMatchingCards,
-    NotEnoughClues,
-    GameOver,
-}
+mod components;
+use self::components::{Card, Deck, Hand};
+pub(crate) use self::components::{ClueError, DiscardError, PlayError};
+pub(crate) use self::components::{Clue, Color, Number};
 
-pub enum PlayError {
-    NoSuchCard,
-    GameOver,
-}
-
-pub enum DiscardError {
-    NoSuchCard,
-    MaxClues,
-    GameOver,
-}
-
-#[derive(Clone, Copy, Hash, PartialEq, Eq)]
-pub enum Color {
-    Red,
-    Green,
-    White,
-    Blue,
-    Yellow,
-}
-
+/// We want to ensure that we always print colors in the same order.
 const COLOR_ORDER: [Color; 5] = [
     Color::Red,
     Color::Green,
@@ -35,190 +14,7 @@ const COLOR_ORDER: [Color; 5] = [
     Color::Yellow,
 ];
 
-use std::fmt;
-impl fmt::Display for Color {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Color::Red => write!(f, ":red_circle:"),
-            Color::Green => write!(f, ":green_apple:"),
-            Color::White => write!(f, ":white_medium_square:"),
-            Color::Blue => write!(f, ":large_blue_diamond:"),
-            Color::Yellow => write!(f, ":yellow_heart:"),
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Number {
-    One,
-    Two,
-    Three,
-    Four,
-    Five,
-}
-
-impl fmt::Display for Number {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Number::One => write!(f, ":one:"),
-            Number::Two => write!(f, ":two:"),
-            Number::Three => write!(f, ":three:"),
-            Number::Four => write!(f, ":four:"),
-            Number::Five => write!(f, ":five:"),
-        }
-    }
-}
-
-impl Number {
-    pub(crate) fn as_usize(&self) -> usize {
-        match *self {
-            Number::One => 1,
-            Number::Two => 2,
-            Number::Three => 3,
-            Number::Four => 4,
-            Number::Five => 5,
-        }
-    }
-}
-
-use std::ops::Add;
-impl Add<usize> for Number {
-    type Output = Number;
-    fn add(self, rhs: usize) -> Self::Output {
-        if rhs == 0 {
-            return self;
-        }
-        let next = match self {
-            Number::One => Number::Two,
-            Number::Two => Number::Three,
-            Number::Three => Number::Four,
-            Number::Four => Number::Five,
-            Number::Five => Number::Five,
-        };
-        next + (rhs - 1)
-    }
-}
-
-#[derive(Clone, Copy)]
-pub enum Clue {
-    Color(Color),
-    Number(Number),
-}
-
-impl fmt::Display for Clue {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Clue::Color(ref c) => write!(f, "{}", c),
-            Clue::Number(ref n) => write!(f, "{}", n),
-        }
-    }
-}
-
-pub struct Card {
-    color: Color,
-    number: Number,
-    clues: Vec<(String, Clue)>,
-}
-
-impl fmt::Display for Card {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} {}", self.color, self.number)
-    }
-}
-
-
-struct Deck(Vec<Card>);
-
-impl Deck {
-    pub(crate) fn draw(&mut self) -> Option<Card> {
-        self.0.pop()
-    }
-}
-
-struct Hand {
-    player: String,
-    cards: LinkedList<Card>,
-}
-
-impl Hand {
-    pub(crate) fn new(player: &str) -> Self {
-        Hand {
-            player: String::from(player),
-            cards: LinkedList::default(),
-        }
-    }
-
-    pub(crate) fn draw(&mut self, deck: &mut Deck) -> bool {
-        deck.draw().map(|card| self.cards.push_back(card)).is_some()
-    }
-
-    pub(crate) fn clue(&mut self, player: &str, clue: Clue) -> Result<usize, ClueError> {
-        let matches = self.cards
-            .iter()
-            .filter(|card| match clue {
-                Clue::Color(ref c) => c == &card.color,
-                Clue::Number(ref n) => n == &card.number,
-            })
-            .count();
-
-        if matches == 0 {
-            return Err(ClueError::NoMatchingCards);
-        }
-
-        for card in &mut self.cards {
-            card.clues.push((player.to_owned(), clue));
-        }
-
-        Ok(matches)
-    }
-
-    pub(crate) fn remove(&mut self, card: usize) -> Option<Card> {
-        if card > self.cards.len() {
-            return None;
-        }
-
-        let mut after = self.cards.split_off(card);
-        let card = after.pop_front();
-        self.cards.append(&mut after);
-        card
-    }
-}
-
-impl Default for Deck {
-    fn default() -> Self {
-        use rand::{thread_rng, Rng};
-
-        let numbers = vec![
-            Number::One,
-            Number::One,
-            Number::One,
-            Number::Two,
-            Number::Two,
-            Number::Three,
-            Number::Three,
-            Number::Four,
-            Number::Four,
-            Number::Five,
-        ];
-        let mut cards: Vec<_> = COLOR_ORDER
-            .iter()
-            .flat_map(|&color| {
-                numbers.iter().map(move |&number| {
-                    Card {
-                        color,
-                        number,
-                        clues: Vec::new(),
-                    }
-                })
-            })
-            .collect();
-
-        thread_rng().shuffle(&mut cards[..]);
-        Deck(cards)
-    }
-}
-
-pub struct Game {
+pub(crate) struct Game {
     deck: Deck,
     hands: Vec<Hand>,
     played: HashMap<Color, Number>,
@@ -232,6 +28,7 @@ pub struct Game {
 }
 
 impl Game {
+    /// Start a new game for the given players with a freshly shuffled deck.
     pub(crate) fn new(players: &[String]) -> Self {
         let mut deck = Deck::default();
         let mut hands: Vec<_> = players
@@ -266,27 +63,30 @@ impl Game {
         }
     }
 
+    /// Current total score of this game.
     pub(crate) fn score(&self) -> usize {
         self.played.iter().map(|(_, num)| num.as_usize()).sum()
     }
 
+    /// Enumerate the usernames of the players in this game.
     pub(crate) fn players<'a>(&'a self) -> Box<Iterator<Item = &'a String> + 'a> {
         Box::new(self.hands.iter().map(|h| &h.player)) as Box<_>
     }
 
+    /// Get the username of the player whose turn it is.
     pub(crate) fn current_player(&self) -> &str {
         &*self.hands[self.turn].player
     }
 
-    pub(crate) fn clue(&mut self, player: &str, to: &str, clue: Clue) -> Result<usize, ClueError> {
+    /// Have the current player give `clue` to `to`.
+    pub(crate) fn clue(&mut self, to: &str, clue: Clue) -> Result<usize, ClueError> {
         if self.clues == 0 {
             return Err(ClueError::NotEnoughClues);
         }
 
-        let to = to.trim_left_matches("<@");
-        let to = to.trim_right_matches('>');
-
-        if player == to {
+        // the clone here is unfortunate, but otherwise it's a double-borrow out of self.hands
+        let player = self.hands[self.turn].player.clone();
+        if self.hands[self.turn].player == to {
             return Err(ClueError::NoSuchPlayer);
         }
 
@@ -297,7 +97,7 @@ impl Game {
             return Err(ClueError::NoSuchPlayer);
         };
 
-        match hand.clue(player, clue) {
+        match hand.clue(&player, clue) {
             Ok(num) => {
                 self.last_move = format!(
                     "<@{}> clued <@{}> that {} {} {}",
@@ -321,20 +121,10 @@ impl Game {
         }
     }
 
-    fn discarded(&mut self, card: Card) {
-        // insert into sorted discard list for that color
-        let d = self.discard.entry(card.color).or_insert_with(Vec::new);
-        let pos = d.binary_search_by_key(&card.number.as_usize(), |c| c.number.as_usize())
-            .unwrap_or_else(|e| e);
-        d.insert(pos, card);
-    }
-
-    pub(crate) fn play(&mut self, player: &str, card: usize) -> Result<(), PlayError> {
+    /// Have the current player play the `card`'th card from the left (0-indexed).
+    pub(crate) fn play(&mut self, card: usize) -> Result<(), PlayError> {
         let hands = self.hands.len();
-        let hand = self.hands
-            .iter_mut()
-            .position(|hand| &hand.player == player)
-            .unwrap();
+        let hand = self.turn;
         if let Some(card) = self.hands.get_mut(hand).unwrap().remove(card) {
             if !self.hands.get_mut(hand).unwrap().draw(&mut self.deck) && self.last_turns.is_none()
             {
@@ -375,7 +165,12 @@ impl Game {
 
             if !success {
                 self.lives -= 1;
-                self.last_move = format!("<@{}> incorrectly played a {}{}", player, card, drew);
+                self.last_move = format!(
+                    "<@{}> incorrectly played a {}{}",
+                    self.hands[self.turn].player,
+                    card,
+                    drew
+                );
 
                 self.discarded(card);
 
@@ -383,7 +178,12 @@ impl Game {
                     return Err(PlayError::GameOver);
                 }
             } else {
-                self.last_move = format!("<@{}> played a {}{}", player, card, drew);
+                self.last_move = format!(
+                    "<@{}> played a {}{}",
+                    self.hands[self.turn].player,
+                    card,
+                    drew
+                );
             }
 
             self.turn = (self.turn + 1) % hands;
@@ -399,23 +199,20 @@ impl Game {
         }
     }
 
-    pub(crate) fn discard(&mut self, player: &str, card: usize) -> Result<(), DiscardError> {
+    /// Have the current player discard the `card`'th card from the left (0-indexed).
+    pub(crate) fn discard(&mut self, card: usize) -> Result<(), DiscardError> {
         if self.clues == 8 {
             return Err(DiscardError::MaxClues);
         }
 
         let hands = self.hands.len();
-        let hand = self.hands
-            .iter_mut()
-            .position(|hand| &hand.player == player)
-            .unwrap();
-
+        let hand = self.turn;
         if let Some(card) = self.hands.get_mut(hand).unwrap().remove(card) {
             if !self.hands.get_mut(hand).unwrap().draw(&mut self.deck) && self.last_turns.is_none()
             {
                 self.last_turns = Some(0);
             }
-            self.last_move = format!("<@{}> discarded a {}", player, card);
+            self.last_move = format!("<@{}> discarded a {}", self.hands[self.turn].player, card);
             self.discarded(card);
             self.clues += 1;
             self.turn = (self.turn + 1) % hands;
@@ -431,6 +228,125 @@ impl Game {
         }
     }
 
+    /// Show `user` everything that is publicly known about `player`'s hand.
+    pub(crate) fn show_clues(&self, user: &str, player: &str, cli: &mut super::MessageProxy) {
+        let p = self.hands.iter().position(|hand| &hand.player == player);
+
+        if p.is_none() {
+            cli.send(
+                user,
+                &format!("there is no player in this game named {}", player),
+            );
+            return;
+        }
+
+        let p = p.unwrap();
+        cli.send(
+            user,
+            &format!(
+                "<@{}> knows the following about their hand:",
+                self.hands[p].player
+            ),
+        );
+        self.show_known(p, user, cli, false)
+    }
+
+    /// Show `user` the current state of the discard pile.
+    pub(crate) fn show_discards(&self, user: &str, cli: &mut super::MessageProxy) {
+        if self.discard.is_empty() {
+            cli.send(user, "The discard pile is empty.");
+            return;
+        }
+
+        cli.send(user, "The discard pile contains the following cards:");
+        for color in &COLOR_ORDER {
+            if let Some(cards) = self.discard.get(color) {
+                let mut out = format!("{} ", color);
+                for card in cards {
+                    out.push_str(&format!("{}", card.number));
+                }
+                cli.send(user, &out);
+            }
+        }
+    }
+
+    /// Progress the current game following a turn, and return true if the game has ended.
+    ///
+    /// This will inform all the users about the current state of the board.
+    /// The player whose turn it is will be shown a slightly different message.
+    ///
+    /// This *could* be called automatially internally, but it'd make the return types of all the
+    /// action methods somewhat annoying.
+    pub(crate) fn progress_game(&mut self, cli: &mut super::MessageProxy) -> bool {
+        // empty line
+        let divider = "--------------------------------------------------------------------------";
+        for hand in &self.hands {
+            // newline
+            cli.send(&hand.player, " ");
+            // spacer
+            cli.send(&hand.player, divider);
+        }
+
+        if !self.last_move.is_empty() {
+            for hand in &self.hands {
+                let mut m = self.last_move
+                    .replace(&format!("<@{}>", hand.player), "you");
+                if m.starts_with("you") {
+                    m = m.replacen("you", "You", 1);
+                }
+                cli.send(&hand.player, &m);
+                cli.send(&hand.player, divider);
+            }
+        }
+
+        let points: usize = self.played.iter().map(|(_, num)| num.as_usize()).sum();
+        let mut game_over = self.lives == 0;
+        if let Some(last_turns) = self.last_turns {
+            game_over = game_over || last_turns == self.hands.len();
+        }
+        if game_over {
+            // the game has ended in a loss :'(
+            for hand in &self.hands {
+                cli.send(
+                    &hand.player,
+                    &format!(
+                        "Game over :slightly_frowning_face:\n\
+                         You got {}/25 points.",
+                        points
+                    ),
+                );
+            }
+            return true;
+        }
+
+        if points == 25 {
+            // the game has ended in a win \o/
+            for hand in &self.hands {
+                cli.send(&hand.player, "You won the game with 25/25 points :tada:");
+            }
+            return true;
+        }
+
+        // game is not yet over -- let's print the game state
+        for i in 0..self.hands.len() {
+            self.print_game_state(i, cli);
+        }
+
+        false
+    }
+
+    /// Called whenever a card is discarded.
+    fn discarded(&mut self, card: Card) {
+        // insert into sorted discard list for that color
+        let d = self.discard.entry(card.color).or_insert_with(Vec::new);
+        let pos = d.binary_search_by_key(&card.number.as_usize(), |c| c.number.as_usize())
+            .unwrap_or_else(|e| e);
+        d.insert(pos, card);
+    }
+
+    /// Show `user` everything that is publicly known about the `hand`'th player's hand.
+    ///
+    /// If `index` is `true`, prefix each card with its (1-based) index.
     fn show_known(&self, hand: usize, user: &str, cli: &mut super::MessageProxy, index: bool) {
         let hand: Vec<_> = self.hands[hand]
             .cards
@@ -461,6 +377,9 @@ impl Game {
         cli.send(user, &hand.join("  |  "));
     }
 
+    /// Show the `hand`'th player the current game state.
+    ///
+    /// Note that the information displayed depends on whether or not it is `hand`'s turn.
     fn print_game_state(&mut self, hand: usize, cli: &mut super::MessageProxy) {
         let user = &self.hands[hand].player;
         let last = if self.last_turns.is_some() {
@@ -535,105 +454,5 @@ impl Game {
             cli.send(user, "They know the following about their hand:");
             self.show_known(self.turn, user, cli, false);
         }
-    }
-
-    pub(crate) fn show_clues(&self, user: &str, player: &str, cli: &mut super::MessageProxy) {
-        let p = player.trim_left_matches("<@");
-        let p = p.trim_right_matches('>');
-        let p = self.hands.iter().position(|hand| &hand.player == p);
-
-        if p.is_none() {
-            cli.send(
-                user,
-                &format!("there is no player in this game named {}", player),
-            );
-            return;
-        }
-
-        let p = p.unwrap();
-        cli.send(
-            user,
-            &format!(
-                "<@{}> knows the following about their hand:",
-                self.hands[p].player
-            ),
-        );
-        self.show_known(p, user, cli, false)
-    }
-
-    pub(crate) fn show_discards(&self, user: &str, cli: &mut super::MessageProxy) {
-        if self.discard.is_empty() {
-            cli.send(user, "The discard pile is empty.");
-            return;
-        }
-
-        cli.send(user, "The discard pile contains the following cards:");
-        for color in &COLOR_ORDER {
-            if let Some(cards) = self.discard.get(color) {
-                let mut out = format!("{} ", color);
-                for card in cards {
-                    out.push_str(&format!("{}", card.number));
-                }
-                cli.send(user, &out);
-            }
-        }
-    }
-
-    pub(crate) fn progress_game(&mut self, cli: &mut super::MessageProxy) -> bool {
-        // empty line
-        let divider = "--------------------------------------------------------------------------";
-        for hand in &self.hands {
-            // newline
-            cli.send(&hand.player, " ");
-            // spacer
-            cli.send(&hand.player, divider);
-        }
-
-        if !self.last_move.is_empty() {
-            for hand in &self.hands {
-                let mut m = self.last_move
-                    .replace(&format!("<@{}>", hand.player), "you");
-                if m.starts_with("you") {
-                    m = m.replacen("you", "You", 1);
-                }
-                cli.send(&hand.player, &m);
-                cli.send(&hand.player, divider);
-            }
-        }
-
-        let points: usize = self.played.iter().map(|(_, num)| num.as_usize()).sum();
-        let mut game_over = self.lives == 0;
-        if let Some(last_turns) = self.last_turns {
-            game_over = game_over || last_turns == self.hands.len();
-        }
-        if game_over {
-            // the game has ended in a loss :'(
-            for hand in &self.hands {
-                cli.send(
-                    &hand.player,
-                    &format!(
-                        "Game over :slightly_frowning_face:\n\
-                         You got {}/25 points.",
-                        points
-                    ),
-                );
-            }
-            return true;
-        }
-
-        if points == 25 {
-            // the game has ended in a win \o/
-            for hand in &self.hands {
-                cli.send(&hand.player, "You won the game with 25/25 points :tada:");
-            }
-            return true;
-        }
-
-        // game is not yet over -- let's print the game state
-        for i in 0..self.hands.len() {
-            self.print_game_state(i, cli);
-        }
-
-        false
     }
 }
