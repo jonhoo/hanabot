@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::Instant;
 
 mod components;
 use self::components::{Card, Deck, Hand};
@@ -14,12 +15,29 @@ const COLOR_ORDER: [Color; 5] = [
     Color::Yellow,
 ];
 
+/// Pretty-print and restart last move time.
+fn dur(start: &mut Instant) -> String {
+    let t = start.elapsed().as_secs();
+    *start = Instant::now();
+
+    if t > 24 * 60 * 60 {
+        format!("{} days", t / (24 * 60 * 60))
+    } else if t > 60 * 60 {
+        format!("{} hours", t / (60 * 60))
+    } else if t > 60 {
+        format!("{} minutes", t / 60)
+    } else {
+        format!("{} seconds", t)
+    }
+}
+
 pub(crate) struct Game {
     deck: Deck,
     hands: Vec<Hand>,
     played: HashMap<Color, Number>,
     discard: HashMap<Color, Vec<Card>>,
     last_move: String,
+    last_move_at: Instant,
     clues: usize,
     lives: usize,
     turn: usize,
@@ -55,6 +73,7 @@ impl Game {
             played: Default::default(),
             discard: Default::default(),
             last_move: String::new(),
+            last_move_at: Instant::now(),
             clues: 8,
             lives: 3,
             turn: 0,
@@ -100,12 +119,13 @@ impl Game {
         match hand.clue(&player, clue) {
             Ok(num) => {
                 self.last_move = format!(
-                    "<@{}> clued <@{}> that {} {} {}",
+                    "<@{}> clued <@{}> that {} {} {} after {}",
                     player,
                     to,
                     num,
                     if num == 1 { "card is" } else { "cards are" },
-                    clue
+                    clue,
+                    dur(&mut self.last_move_at),
                 );
                 self.clues -= 1;
                 self.turn = (self.turn + 1) % hands;
@@ -166,10 +186,11 @@ impl Game {
             if !success {
                 self.lives -= 1;
                 self.last_move = format!(
-                    "<@{}> incorrectly played a {}{}",
+                    "<@{}> incorrectly played a {} after {}{}",
                     self.hands[self.turn].player,
                     card,
-                    drew
+                    dur(&mut self.last_move_at),
+                    drew,
                 );
 
                 self.discarded(card);
@@ -179,10 +200,11 @@ impl Game {
                 }
             } else {
                 self.last_move = format!(
-                    "<@{}> played a {}{}",
+                    "<@{}> played a {} after {}{}",
                     self.hands[self.turn].player,
                     card,
-                    drew
+                    dur(&mut self.last_move_at),
+                    drew,
                 );
             }
 
@@ -212,7 +234,12 @@ impl Game {
             {
                 self.last_turns = Some(0);
             }
-            self.last_move = format!("<@{}> discarded a {}", self.hands[self.turn].player, card);
+            self.last_move = format!(
+                "<@{}> discarded a {} after {}",
+                self.hands[self.turn].player,
+                card,
+                dur(&mut self.last_move_at)
+            );
             self.discarded(card);
             self.clues += 1;
             self.turn = (self.turn + 1) % hands;
