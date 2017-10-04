@@ -10,7 +10,6 @@ pub enum ClueError {
 pub enum PlayError {
     NoSuchCard,
     GameOver,
-    GameWon,
 }
 
 pub enum DiscardError {
