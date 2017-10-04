@@ -1,8 +1,18 @@
 [package]
 name = "hanabot"
 version = "0.1.0"
+
+description = "A Slack bot that lets you play Hanabi"
+readme = "README.md"
+
 authors = ["Jon Gjengset <jon@thesquareplanet.com>"]
 
+homepage = "https://github.com/jonhoo/hanabot"
+repository = "https://github.com/jonhoo/hanabot.git"
+
+keywords = ["bot","slack","hanabi"]
+
+license = "MIT/Apache-2.0"
 [dependencies]
 slack = "0.19.0"
 rand = "0.3"
