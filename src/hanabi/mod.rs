@@ -265,7 +265,7 @@ impl Game {
         cli.send(user, "The other players' hands are:");
         for i in 1..self.hands.len() {
             let i = (me + i) % self.hands.len();
-            self.show_hand_inner((me + i) % self.hands.len(), user, cli);
+            self.show_hand_inner((me + i) % self.hands.len(), user, cli, true);
         }
     }
 
@@ -289,7 +289,7 @@ impl Game {
         let p = p.unwrap();
 
         cli.send(user, "Their hand is:");
-        self.show_hand_inner(p, user, cli);
+        self.show_hand_inner(p, user, cli, false);
         cli.send(user, "They know the following:");
         self.show_known(p, user, cli, false);
     }
@@ -421,16 +421,26 @@ impl Game {
     }
 
     /// Show `user` the hand of `player`.
-    fn show_hand_inner(&self, hand: usize, user: &str, cli: &mut super::MessageProxy) {
+    fn show_hand_inner(
+        &self,
+        hand: usize,
+        user: &str,
+        cli: &mut super::MessageProxy,
+        with_names: bool,
+    ) {
         let cards: Vec<_> = self.hands[hand]
             .cards
             .iter()
             .map(|c| format!("{}", c))
             .collect();
-        cli.send(
-            user,
-            &format!("*<@{}>*: {}", self.hands[hand].player, cards.join("  |  ")),
-        );
+        if with_names {
+            cli.send(
+                user,
+                &format!("*<@{}>*: {}", self.hands[hand].player, cards.join("  |  ")),
+            );
+        } else {
+            cli.send(user, &cards.join("  |  "));
+        }
     }
 
     /// Show the `hand`'th player the current game state.
@@ -482,8 +492,7 @@ impl Game {
             // but we can't yet: https://api.slack.com/bot-users#post_messages_and_react_to_users
             cli.send(user, "The next players' hands are:");
             for i in 1..self.hands.len() {
-                let i = (self.turn + i) % self.hands.len();
-                self.show_hand_inner((self.turn + i) % self.hands.len(), user, cli);
+                self.show_hand_inner((self.turn + i) % self.hands.len(), user, cli, true);
             }
 
             cli.send(
