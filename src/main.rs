@@ -429,7 +429,7 @@ impl Game {
                 desc
             })
             .collect();
-        let _ = cli.sender().send_message(channel, &hand.join(" | "));
+        let _ = cli.sender().send_message(channel, &hand.join("  |  "));
     }
 
     fn print_game_state(&mut self, hand: usize, channel: &str, cli: &RtmClient) {
@@ -481,7 +481,7 @@ impl Game {
             }
 
             let cards: Vec<_> = h.cards.iter().map(|c| format!("{}", c)).collect();
-            msg(&format!("*<@{}>*: {}", h.player, cards.join(" | ")));
+            msg(&format!("*<@{}>*: {}", h.player, cards.join("  |  ")));
         }
 
         msg("Your hand, as far as you know, is:");
@@ -527,12 +527,12 @@ impl Game {
         for card in &self.discard {
             waiting.push(format!("{}", card));
             if waiting.len() == 5 {
-                let _ = cli.sender().send_message(channel, &waiting.join(" | "));
+                let _ = cli.sender().send_message(channel, &waiting.join("  |  "));
                 waiting.clear();
             }
         }
         if !waiting.is_empty() {
-            let _ = cli.sender().send_message(channel, &waiting.join(" | "));
+            let _ = cli.sender().send_message(channel, &waiting.join("  |  "));
         }
     }
 
