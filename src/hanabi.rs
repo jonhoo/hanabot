@@ -364,13 +364,18 @@ impl Game {
                 },
             };
 
+            let drew = if self.last_turns.is_none() {
+                format!(
+                    ", and then drew a {}",
+                    self.hands[hand].cards.back().unwrap()
+                )
+            } else {
+                "".to_owned()
+            };
+
             if !success {
                 self.lives -= 1;
-                self.last_move = format!(
-                    "<@{}> played a {} incorrectly :right_anger_bubble:",
-                    player,
-                    card
-                );
+                self.last_move = format!("<@{}> incorrectly played a {}{}", player, card, drew);
 
                 self.discarded(card);
 
@@ -378,7 +383,7 @@ impl Game {
                     return Err(PlayError::GameOver);
                 }
             } else {
-                self.last_move = format!("<@{}> played a {}", player, card);
+                self.last_move = format!("<@{}> played a {}{}", player, card, drew);
             }
 
             self.turn = (self.turn + 1) % hands;
