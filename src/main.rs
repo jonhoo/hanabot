@@ -485,7 +485,6 @@ impl slack::EventHandler for Hanabi {
                         }
                         None => {
                             // unknown user made move that wasn't `join`
-                            println!("unknown user {} gave command {} in {}", u, t, c);
                             return;
                         }
                     }
