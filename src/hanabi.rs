@@ -10,6 +10,7 @@ pub enum ClueError {
 pub enum PlayError {
     NoSuchCard,
     GameOver,
+    GameWon,
 }
 
 pub enum DiscardError {
@@ -341,6 +342,13 @@ impl Game {
                 },
                 Entry::Occupied(mut e) => if card.number == *e.get() + 1 {
                     e.insert(card.number);
+                    if card.number == Number::Five {
+                        // completed a stack!
+                        // get a clue.
+                        if self.clues < 8 {
+                            self.clues += 1;
+                        }
+                    }
                     true
                 } else {
                     false
