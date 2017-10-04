@@ -215,8 +215,8 @@ impl<'a> MessageProxy<'a> {
             .push(text.to_owned());
     }
 
-    pub fn flush(self, user_to_channel: &HashMap<String, String>) {
-        for (user, msgs) in self.msgs {
+    pub fn flush(&mut self, user_to_channel: &HashMap<String, String>) {
+        for (user, msgs) in self.msgs.drain() {
             let _ = self.cli
                 .sender()
                 .send_message(&user_to_channel[&user], &msgs.join("\n"));
@@ -384,11 +384,6 @@ impl Hanabi {
             return;
         }
 
-        if text == "quit" {
-            msgs.send(user, "Yeeeeeahhhhh, we don't support quitting games yet...");
-            return;
-        }
-
         let game_id = if let Some(game_id) = self.in_game.get(user) {
             *game_id
         } else {
@@ -416,6 +411,20 @@ impl Hanabi {
         }
 
         match cmd {
+            Some("quit") => {
+                let score = self.games[&game_id].score();
+                for player in self.games[&game_id].players() {
+                    msgs.send(
+                        player,
+                        &format!(
+                            "The game was ended prematurely by <@{}> with a score of {}/25",
+                            user,
+                            score
+                        ),
+                    );
+                }
+                self.end_game(game_id, msgs);
+            }
             Some("discards") => {
                 self.games[&game_id].show_discards(user, msgs);
             }
@@ -586,16 +595,22 @@ impl Hanabi {
     /// the pool of waiting players.
     fn progress_game(&mut self, game_id: usize, msgs: &mut MessageProxy) {
         if self.games.get_mut(&game_id).unwrap().progress_game(msgs) {
-            // game has ended
-            let game = self.games.remove(&game_id).unwrap();
-
-            println!("game #{} ended with score {}/25", game_id, game.score());
-
-            for player in game.players() {
-                self.in_game.remove(player);
-                self.waiting.push_back(player.clone());
-            }
-            self.on_player_change(msgs);
+            msgs.flush(&self.playing_users);
+            self.end_game(game_id, msgs);
         }
+    }
+
+    /// Called to end a game.
+    fn end_game(&mut self, game_id: usize, msgs: &mut MessageProxy) {
+        // game has ended
+        let game = self.games.remove(&game_id).unwrap();
+
+        println!("game #{} ended with score {}/25", game_id, game.score());
+
+        for player in game.players() {
+            self.in_game.remove(player);
+            self.waiting.push_back(player.clone());
+        }
+        self.on_player_change(msgs);
     }
 }
