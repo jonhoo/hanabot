@@ -203,6 +203,30 @@ impl slack::EventHandler for Hanabi {
                         self.on_player_change(&mut messages);
                         messages.flush(&self.playing_users);
                     }
+                } else if t.to_lowercase() == "leave" {
+                    if self.playing_users.contains_key(u) {
+                        // the user wants to leave
+                        let mut messages = MessageProxy::new(cli);
+
+                        // first make them quit.
+                        if self.in_game.contains_key(u) {
+                            self.handle_move(u, "quit", &mut messages);
+                        }
+
+                        // then make them not wait anymore.
+                        if let Some(i) = self.waiting.iter().position(|p| p == u) {
+                            self.waiting.remove(i);
+                        } else {
+                            println!("user {} wanted to leave, but not waiting?", u);
+                        }
+
+                        // let them know we removed them
+                        messages.send(u, "I have stricken you from all my lists.");
+                        messages.flush(&self.playing_users);
+
+                        // then actually remove
+                        self.playing_users.remove(u);
+                    }
                 } else if t.to_lowercase() == "players" {
                     let mut out = format!(
                         "There are currently {} games and {} players:",
