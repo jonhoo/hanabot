@@ -63,11 +63,19 @@ fn main() {
 
     let mut r = Runner {
         state: handler,
-        running,
+        running: running.clone(),
     };
 
     while let Err(e) = RtmClient::login_and_run(&api_key, &mut r) {
-        // TODO: do not re-announce to the channel on error
+        if !running.load(Ordering::SeqCst) {
+            // most likely, we'll get the error:
+            // slack::Error::WebSocket(tungstenite::error::Error::Io(e))
+            // where e.kind() == ErrorKind::Interrupted
+            // but that's annoying to match against, so we always print it:
+            eprintln!("Error when exiting: {}", e);
+            break;
+        }
+
         eprintln!("Error while running: {}", e);
     }
 
