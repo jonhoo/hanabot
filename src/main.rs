@@ -147,6 +147,9 @@ impl slack::EventHandler for Hanabi {
                         "Hanabi bot is now available! :tada:\n\
                          Send me the message 'join' to join a game.",
                     );
+                } else {
+                    let _ = cli.sender()
+                        .send_message(&channel, "Hanabi bot was restarted -- everything is fine.");
                 }
                 self.channel = channel.clone();
             }
