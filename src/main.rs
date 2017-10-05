@@ -108,7 +108,7 @@ impl slack::EventHandler for Hanabi {
 
                 // first and foremost, if this message isn't for us, ignore it
                 if c == &self.channel && !t.starts_with(&prefix) {
-                    if t == "join" {
+                    if t.to_lowercase() == "join" {
                         // some poor user tried to join -- help them out
                         let _ = cli.sender()
                             .send_message(c, &format!("<@{}> please dm me instead", u));
@@ -117,7 +117,7 @@ impl slack::EventHandler for Hanabi {
                 }
 
                 let t = t.trim_left_matches(&prefix);
-                if t == "join" {
+                if t.to_lowercase() == "join" {
                     if c == &self.channel {
                         // we need to know the DM channel ID, so force the user to DM us
                         let _ = cli.sender()
@@ -139,7 +139,7 @@ impl slack::EventHandler for Hanabi {
                         self.on_player_change(&mut messages);
                         messages.flush(&self.playing_users);
                     }
-                } else if t == "players" {
+                } else if t.to_lowercase() == "players" {
                     let mut out = format!(
                         "There are currently {} games and {} players:",
                         self.games.len(),
@@ -395,7 +395,7 @@ impl Hanabi {
 
     /// Handle a turn command by the given `user`.
     fn handle_move(&mut self, user: &str, text: &str, msgs: &mut MessageProxy) {
-        if text == "start" {
+        if text.to_lowercase() == "start" {
             if self.in_game.contains_key(user) {
                 // game has already started, so ignore this
                 return;
@@ -416,7 +416,8 @@ impl Hanabi {
         };
 
         let mut command = text.split_whitespace();
-        let cmd = command.next();
+        let cmd = command.next().map(|cmd| cmd.to_lowercase());
+        let cmd = cmd.as_ref().map(|cmd| cmd.as_str());
 
         if let Some(cmd) = cmd {
             if cmd == "play" || cmd == "clue" || cmd == "discard" {
