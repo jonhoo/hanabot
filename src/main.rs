@@ -1,8 +1,16 @@
+extern crate ctrlc;
 extern crate rand;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
 extern crate slack;
 
 use slack::{Event, Message, RtmClient};
 use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::fs::File;
+use std::io::{BufReader, BufWriter};
 
 mod hanabi;
 use hanabi::{Clue, Color, Game, Number};
@@ -37,10 +45,63 @@ fn main() {
         std::process::exit(1);
     };
 
-    let mut handler = Hanabi::default();
-    while let Err(e) = RtmClient::login_and_run(&api_key, &mut handler) {
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+    ctrlc::set_handler(move || {
+        r.store(false, Ordering::SeqCst);
+    }).expect("Error setting Ctrl-C handler");
+
+    let handler: Hanabi = File::open("state.json")
+        .map_err(|_| ())
+        .and_then(|f| {
+            serde_json::from_reader(BufReader::new(f)).map_err(|e| {
+                eprintln!("Found past state, but failed to parse it: {}", e);
+                ()
+            })
+        })
+        .unwrap_or_default();
+
+    let mut r = Runner {
+        state: handler,
+        running,
+    };
+
+    while let Err(e) = RtmClient::login_and_run(&api_key, &mut r) {
         // TODO: do not re-announce to the channel on error
         eprintln!("Error while running: {}", e);
+    }
+
+    // we're exiting; serialize state so we can later resume
+    match File::create("state.json") {
+        Ok(f) => if let Err(e) = serde_json::to_writer(BufWriter::new(f), &r.state) {
+            eprintln!("Failed to save game state: {}", e);
+        },
+        Err(e) => {
+            eprintln!("Failed to save game state: {}", e);
+        }
+    }
+}
+
+struct Runner {
+    state: Hanabi,
+    running: Arc<AtomicBool>,
+}
+
+impl slack::EventHandler for Runner {
+    fn on_connect(&mut self, cli: &RtmClient) {
+        self.state.on_connect(cli)
+    }
+
+    fn on_event(&mut self, cli: &RtmClient, event: Event) {
+        self.state.on_event(cli, event);
+
+        if !self.running.load(Ordering::SeqCst) {
+            let _ = cli.sender().shutdown();
+        }
+    }
+
+    fn on_close(&mut self, cli: &RtmClient) {
+        self.state.on_close(cli);
     }
 }
 
@@ -245,6 +306,7 @@ impl<'a> MessageProxy<'a> {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 struct Hanabi {
     /// id of the bot's user
     me: String,

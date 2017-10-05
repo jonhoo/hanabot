@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::time::Instant;
+use std::time::SystemTime;
 
 mod components;
 use self::components::{Card, Deck, Hand};
@@ -16,9 +16,14 @@ const COLOR_ORDER: [Color; 5] = [
 ];
 
 /// Pretty-print and restart last move time.
-fn dur(start: &mut Instant) -> String {
-    let t = start.elapsed().as_secs();
-    *start = Instant::now();
+fn dur(start: &mut SystemTime) -> String {
+    let t = start.elapsed();
+    *start = SystemTime::now();
+
+    if t.is_err() {
+        return "a while".to_owned();
+    }
+    let t = t.unwrap().as_secs();
 
     if t > 24 * 60 * 60 {
         format!("{} days", t / (24 * 60 * 60))
@@ -31,6 +36,7 @@ fn dur(start: &mut Instant) -> String {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 struct Move {
     player: usize,
     for_player: String,
@@ -55,13 +61,14 @@ impl Move {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub(crate) struct Game {
     deck: Deck,
     hands: Vec<Hand>,
     played: HashMap<Color, Number>,
     discard: HashMap<Color, Vec<Card>>,
     last_move: Move,
-    last_move_at: Instant,
+    last_move_at: SystemTime,
     clues: usize,
     lives: usize,
     turn: usize,
@@ -97,7 +104,7 @@ impl Game {
             played: Default::default(),
             discard: Default::default(),
             last_move: Move::new(0, "".to_owned(), "".to_owned()),
-            last_move_at: Instant::now(),
+            last_move_at: SystemTime::now(),
             clues: 8,
             lives: 3,
             turn: 0,

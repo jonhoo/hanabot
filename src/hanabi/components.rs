@@ -21,7 +21,7 @@ pub(crate) enum DiscardError {
     GameOver,
 }
 
-#[derive(Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum Color {
     Red,
     Green,
@@ -43,7 +43,7 @@ impl fmt::Display for Color {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum Number {
     One,
     Two,
@@ -95,7 +95,7 @@ impl Add<usize> for Number {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub(crate) enum Clue {
     Color(Color),
     Number(Number),
@@ -110,6 +110,7 @@ impl fmt::Display for Clue {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub(super) struct Card {
     pub(super) color: Color,
     pub(super) number: Number,
@@ -126,6 +127,7 @@ impl fmt::Display for Card {
 }
 
 
+#[derive(Serialize, Deserialize)]
 pub(super) struct Deck(Vec<Card>);
 
 impl Deck {
@@ -168,6 +170,7 @@ impl Default for Deck {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub(super) struct Hand {
     pub(super) player: String,
     pub(super) cards: LinkedList<Card>,

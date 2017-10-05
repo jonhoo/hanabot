@@ -51,7 +51,6 @@ hand.
 
 ## Known limitations
 
- - No state is preserved when the bot is restarted.
  - No spectator mode.
  - The emojis are ugly.
  - No support for playing with the rainbow suit.
