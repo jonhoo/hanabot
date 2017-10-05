@@ -447,6 +447,20 @@ impl Hanabi {
                 }
                 self.end_game(game_id, msgs);
             }
+            Some("ping") => {
+                let current = self.games[&game_id].current_player();
+                if current == user {
+                    msgs.send(
+                        user,
+                        "It's your turn... No need to bother the other players.",
+                    );
+                } else {
+                    msgs.send(
+                        current,
+                        &format!("<@{}> pinged you -- it's your turn.", user),
+                    );
+                }
+            }
             Some("discards") => {
                 self.games[&game_id].show_discards(user, msgs);
             }

@@ -43,7 +43,8 @@ During play, a player can play, clue, and discard:
    number (e.g., `two`).
 
 In addition, use `clues @player` to show what a player knows about their
-hand, and `discards` to show the discard pile.
+hand, `discards` to show the discard pile, and `ping` to remind the
+current player that it's their turn.
 
 When new cards are drawn, they appear on the right-hand side of your
 hand.
