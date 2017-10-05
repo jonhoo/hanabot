@@ -215,6 +215,7 @@ impl slack::EventHandler for Hanabi {
 
                         // then make them not wait anymore.
                         if let Some(i) = self.waiting.iter().position(|p| p == u) {
+                            println!("user {} left", u);
                             self.waiting.remove(i);
                         } else {
                             println!("user {} wanted to leave, but not waiting?", u);
