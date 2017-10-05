@@ -104,6 +104,12 @@ impl slack::EventHandler for Runner {
         self.state.on_event(cli, event);
 
         if !self.running.load(Ordering::SeqCst) {
+            // we're unfortunately rarely get here because the Ctrl-C will cause the outer run to
+            // return an error...
+            let _ = cli.sender().send_message(
+                &self.state.channel,
+                "Hanabi bot is going to be unavailable for a little bit :slightly_frowning_face:",
+            );
             let _ = cli.sender().shutdown();
         }
     }
