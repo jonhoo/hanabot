@@ -519,8 +519,14 @@ impl Hanabi {
             return;
         };
 
-        let mut command = text.split_whitespace();
-        let cmd = command.next().map(|cmd| cmd.to_lowercase());
+        let mut command = text.split_whitespace().peekable();
+
+        let cmd = match command.peek() {
+            Some(cmd) if cmd.starts_with("<@") && cmd.ends_with(">") => Some("clue"),
+            _ => None,
+        };
+        let cmd = cmd.or_else(|| command.next());
+        let cmd = cmd.map(|cmd| cmd.to_lowercase());
         let cmd = cmd.as_ref().map(|cmd| cmd.as_str());
 
         if let Some(cmd) = cmd {
