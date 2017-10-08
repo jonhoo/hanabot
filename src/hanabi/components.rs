@@ -34,11 +34,11 @@ use std::fmt;
 impl fmt::Display for Color {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Color::Red => write!(f, ":red_circle:"),
-            Color::Green => write!(f, ":green_apple:"),
-            Color::White => write!(f, ":white_medium_square:"),
-            Color::Blue => write!(f, ":large_blue_diamond:"),
-            Color::Yellow => write!(f, ":yellow_heart:"),
+            Color::Red => write!(f, ":heart:"),
+            Color::Green => write!(f, ":deciduous_tree:"),
+            Color::White => write!(f, ":cloud:"),
+            Color::Blue => write!(f, ":droplet:"),
+            Color::Yellow => write!(f, ":sunny:"),
         }
     }
 }
