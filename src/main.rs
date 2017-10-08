@@ -258,14 +258,18 @@ impl slack::EventHandler for Hanabi {
                                 .join(">, <@")
                         ));
                     }
-                    out.push_str(&format!(
-                        "\nWaiting: {}",
-                        self.waiting
-                            .iter()
-                            .map(|p| format!("<@{}>", p))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ));
+                    if self.waiting.is_empty() {
+                        out.push_str("\nNo players waiting.");
+                    } else {
+                        out.push_str(&format!(
+                            "\nWaiting: {}",
+                            self.waiting
+                                .iter()
+                                .map(|p| format!("<@{}>", p))
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ));
+                    }
                     let _ = cli.sender().send_message(c, &out);
                 } else if t == "help" {
                     let out = "\
