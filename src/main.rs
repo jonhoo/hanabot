@@ -574,6 +574,7 @@ impl Hanabi {
                         current,
                         &format!("<@{}> pinged you -- it's your turn.", user),
                     );
+                    msgs.send(user, &format!("I've pinged <@{}>.", current));
                 }
             }
             Some("discards") => {

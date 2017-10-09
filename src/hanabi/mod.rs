@@ -309,7 +309,14 @@ impl Game {
         cli.send(user, "The other players' hands (in turn order) are:");
         for i in 1..self.hands.len() {
             let hand = (me + i) % self.hands.len();
-            cli.send(user, &format!("<@{}>", self.hands[hand].player));
+            if hand == self.turn {
+                cli.send(
+                    user,
+                    &format!("<@{}> &lt;-- current turn", self.hands[hand].player),
+                );
+            } else {
+                cli.send(user, &format!("<@{}>", self.hands[hand].player));
+            }
             let (cards, known): (Vec<_>, Vec<_>) = self.hands[hand]
                 .cards
                 .iter()
@@ -318,7 +325,7 @@ impl Game {
             cli.send(
                 user,
                 &format!(
-                    "Has {}, knows {}",
+                    "{} in hand\n{} known",
                     &cards.join("  |  "),
                     &known.join("  |  ")
                 ),
@@ -456,7 +463,7 @@ impl Game {
                 format!("{} :zero:", color)
             })
             .collect();
-        cli.send(user, &format!("Played:\n{}", stacks.join(" ")));
+        cli.send(user, &format!("Played:\n{}", stacks.join("  |  ")));
 
         if self.turn == hand {
             // it is our turn.
