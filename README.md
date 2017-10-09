@@ -25,7 +25,8 @@ players can join.
 ## Usage
 
 Players must first notify the Hanabi bot that they wish to play. They do
-so by sending the bot `join` in a direct message.
+so by sending the bot `join` in a direct message. If you no longer wish
+to participate in games, use `leave`.
 
 The bot will try to construct games of five players. Once there are two
 or more players, any player can instruct the bot to `start`, which
@@ -40,11 +41,12 @@ During play, a player can play, clue, and discard:
    `play`.
  - To clue, use `clue @player <specifier>` where `@player` is the user
    to clue, and `<specifier>` is either a color (e.g., `red`), or a
-   number (e.g., `two`).
+   number (e.g., `two`). The leading `clue` keyword is optional.
 
-In addition, use `clues @player` to show what a player knows about their
-hand, `discards` to show the discard pile, and `ping` to remind the
-current player that it's their turn.
+In addition, use `hands` to show all players' hands, and what each
+player knows about their hand, `discards` to show the discard pile, and
+`ping` to remind the current player that it's their turn. You can also
+terminate the current game using `quit`.
 
 When new cards are drawn, they appear on the right-hand side of your
 hand.
@@ -52,7 +54,6 @@ hand.
 ## Known limitations
 
  - No spectator mode.
- - The emojis are ugly.
  - No support for playing with the rainbow suit.
  - No support for playing with character cards.
  - No long-term statistics tracking.

@@ -281,9 +281,10 @@ impl slack::EventHandler for Hanabi {
                                To `clue`, you give the player you are cluing (`@player`), \
                                and the clue you want to give (e.g., `red`, `one`).\n\
                                \n\
-                               To look around, you can use `hands` or `discards`, or you can use \
-                               `hand @player` to see what a particular player knows. \
-                               If everything goes south, you can always use `quit` to give up.\n\
+                               To look around, you can use `hands` or `discards`. The former will \
+                               tell you what each player has and knows, and the latter will show \
+                               you the discard pile. If everything goes south, you can always use \
+                               `quit` to give up.\n\
                                \n\
                                If you want more information, try \
                                https://github.com/jonhoo/hanabot.";
@@ -580,23 +581,6 @@ impl Hanabi {
             }
             Some("hands") => {
                 self.games[&game_id].show_hands(user, msgs);
-            }
-            Some("hand") => {
-                let player = command.next();
-                if player.is_none() || command.next().is_some() {
-                    msgs.send(
-                        user,
-                        "I believe you are mistaken. \
-                         To view what a person knows about their hand, you just name a player \
-                         (using @playername), and nothing else.",
-                    );
-                    return;
-                }
-                let player = player.unwrap();
-                let player = player.trim_left_matches("<@");
-                let player = player.trim_right_matches('>');
-
-                self.games[&game_id].show_hand(user, player, msgs);
             }
             Some("clue") => {
                 let player = command.next();

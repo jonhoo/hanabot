@@ -299,7 +299,7 @@ impl Game {
         }
     }
 
-    /// Show `user` every other player's hand.
+    /// Show `user` every other player's hand + what they know.
     pub(crate) fn show_hands(&self, user: &str, cli: &mut super::MessageProxy) {
         let me = self.hands
             .iter()
@@ -308,33 +308,22 @@ impl Game {
 
         cli.send(user, "The other players' hands are:");
         for i in 1..self.hands.len() {
-            self.show_hand_inner((me + i) % self.hands.len(), user, cli, true);
-        }
-    }
-
-    /// Show `user` everything they know about `player`'s hand.
-    pub(crate) fn show_hand(&self, user: &str, player: &str, cli: &mut super::MessageProxy) {
-        if user == player {
-            cli.send(user, "Nope, you can't view your own hand...");
-            return;
-        }
-
-        let p = self.hands.iter().position(|hand| &hand.player == player);
-
-        if p.is_none() {
+            let hand = (me + i) % self.hands.len();
+            cli.send(user, &format!("<@{}>", self.hands[hand].player));
+            let (cards, known): (Vec<_>, Vec<_>) = self.hands[hand]
+                .cards
+                .iter()
+                .map(|card| (format!("{}", card), card.known()))
+                .unzip();
             cli.send(
                 user,
-                &format!("there is no player in this game named {}", player),
+                &format!(
+                    "Has {}, knows {}",
+                    &cards.join("  |  "),
+                    &known.join("  |  ")
+                ),
             );
-            return;
         }
-
-        let p = p.unwrap();
-
-        cli.send(user, "Their hand is:");
-        self.show_hand_inner(p, user, cli, false);
-        cli.send(user, "They know the following:");
-        self.show_known(p, user, cli, false);
     }
 
     /// Show `user` the current state of the discard pile.
@@ -431,62 +420,6 @@ impl Game {
         d.insert(pos, card);
     }
 
-    /// Show `user` everything that is publicly known about the `hand`'th player's hand.
-    ///
-    /// If `index` is `true`, prefix each card with its (1-based) index.
-    fn show_known(&self, hand: usize, user: &str, cli: &mut super::MessageProxy, index: bool) {
-        let hand: Vec<_> = self.hands[hand]
-            .cards
-            .iter()
-            .enumerate()
-            .map(|(i, card)| {
-                let know_color = card.clues.iter().any(|&(_, clue)| match clue {
-                    Clue::Color(ref c) => c == &card.color,
-                    _ => false,
-                });
-                let know_number = card.clues.iter().any(|&(_, clue)| match clue {
-                    Clue::Number(ref n) => n == &card.number,
-                    _ => false,
-                });
-
-                let mut desc = match (know_color, know_number) {
-                    (false, false) => format!(":rainbow: :keycap_star:"),
-                    (false, true) => format!(":rainbow: {}", card.number),
-                    (true, false) => format!("{} :keycap_star:", card.color),
-                    (true, true) => format!("{} {}", card.color, card.number),
-                };
-                if index {
-                    desc = format!("{}: {}", i + 1, desc);
-                }
-                desc
-            })
-            .collect();
-        cli.send(user, &hand.join("  |  "));
-    }
-
-    /// Show `user` the hand of `player`.
-    fn show_hand_inner(
-        &self,
-        hand: usize,
-        user: &str,
-        cli: &mut super::MessageProxy,
-        with_names: bool,
-    ) {
-        let cards: Vec<_> = self.hands[hand]
-            .cards
-            .iter()
-            .map(|c| format!("{}", c))
-            .collect();
-        if with_names {
-            cli.send(
-                user,
-                &format!("*<@{}>*: {}", self.hands[hand].player, cards.join("  |  ")),
-            );
-        } else {
-            cli.send(user, &cards.join("  |  "));
-        }
-    }
-
     /// Show the `hand`'th player the current game state.
     ///
     /// Note that the information displayed depends on whether or not it is `hand`'s turn.
@@ -530,18 +463,20 @@ impl Game {
             // show what we know about our hand, and the hands of the following players
 
             cli.send(user, "Your hand, as far as you know, is:");
-            self.show_known(hand, user, cli, true);
+            let known: Vec<_> = self.hands[hand]
+                .cards
+                .iter()
+                .enumerate()
+                .map(|(i, card)| format!("{}: {}", i + 1, card.known()))
+                .collect();
+            cli.send(user, &known.join("  |  "));
 
-            // we want to use attachments to show other players' hands
-            // but we can't yet: https://api.slack.com/bot-users#post_messages_and_react_to_users
-            cli.send(user, "The next players' hands are:");
-            for i in 1..self.hands.len() {
-                self.show_hand_inner((self.turn + i) % self.hands.len(), user, cli, true);
-            }
+            cli.send(user, "");
+            self.show_hands(user, cli);
 
             cli.send(
                 user,
-                "When you have the time, let me know here what move you want to make next!",
+                "\nWhen you have the time, let me know here what move you want to make next!",
             );
         } else {
             // it is *not* our turn.
@@ -553,9 +488,6 @@ impl Game {
                 .map(|c| format!("{}", c))
                 .collect();
             cli.send(&user, &format!("{}", cards.join("  |  ")));
-
-            cli.send(user, "They know the following about their hand:");
-            self.show_known(self.turn, user, cli, false);
         }
     }
 }

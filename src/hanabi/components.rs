@@ -126,6 +126,26 @@ impl fmt::Display for Card {
     }
 }
 
+impl Card {
+    pub fn known(&self) -> String {
+        let know_color = self.clues.iter().any(|&(_, clue)| match clue {
+            Clue::Color(ref c) => c == &self.color,
+            _ => false,
+        });
+        let know_number = self.clues.iter().any(|&(_, clue)| match clue {
+            Clue::Number(ref n) => n == &self.number,
+            _ => false,
+        });
+
+        match (know_color, know_number) {
+            (false, false) => format!(":rainbow: :keycap_star:"),
+            (false, true) => format!(":rainbow: {}", self.number),
+            (true, false) => format!("{} :keycap_star:", self.color),
+            (true, true) => format!("{} {}", self.color, self.number),
+        }
+    }
+}
+
 
 #[derive(Serialize, Deserialize)]
 pub(super) struct Deck(Vec<Card>);
