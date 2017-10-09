@@ -306,7 +306,7 @@ impl Game {
             .position(|hand| &hand.player == user)
             .unwrap();
 
-        cli.send(user, "The other players' hands are:");
+        cli.send(user, "The other players' hands (in turn order) are:");
         for i in 1..self.hands.len() {
             let hand = (me + i) % self.hands.len();
             cli.send(user, &format!("<@{}>", self.hands[hand].player));
@@ -456,7 +456,7 @@ impl Game {
                 format!("{} :zero:", color)
             })
             .collect();
-        cli.send(user, &format!("Played: {}", stacks.join(" ")));
+        cli.send(user, &format!("Played:\n{}", stacks.join(" ")));
 
         if self.turn == hand {
             // it is our turn.
