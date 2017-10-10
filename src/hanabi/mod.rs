@@ -147,7 +147,7 @@ impl Game {
             return Err(ClueError::NoSuchPlayer);
         };
 
-        match hand.clue(&player, clue) {
+        match hand.clue(self.turn, clue) {
             Ok(num) => {
                 let did = format!(
                     "<@{}> clued <@{}> that {} {} {} after {}",

@@ -116,8 +116,8 @@ pub(super) struct Card {
     pub(super) number: Number,
 
     /// All clues given to a player while this card was in their hand.
-    /// The `String` is the username of the player who gave each clue.
-    pub(super) clues: Vec<(String, Clue)>,
+    /// The `usize` is the hand index of the player who gave each clue.
+    pub(super) clues: Vec<(usize, Clue)>,
 }
 
 impl fmt::Display for Card {
@@ -208,7 +208,7 @@ impl Hand {
         deck.draw().map(|card| self.cards.push_back(card)).is_some()
     }
 
-    pub(super) fn clue(&mut self, player: &str, clue: Clue) -> Result<usize, ClueError> {
+    pub(super) fn clue(&mut self, player: usize, clue: Clue) -> Result<usize, ClueError> {
         let matches = self.cards
             .iter()
             .filter(|card| match clue {
@@ -222,7 +222,7 @@ impl Hand {
         }
 
         for card in &mut self.cards {
-            card.clues.push((player.to_owned(), clue));
+            card.clues.push((player, clue));
         }
 
         Ok(matches)
