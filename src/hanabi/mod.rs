@@ -300,14 +300,14 @@ impl Game {
     }
 
     /// Show `user` every other player's hand + what they know.
-    pub(crate) fn show_hands(&self, user: &str, cli: &mut super::MessageProxy) {
+    pub(crate) fn show_hands(&self, user: &str, skip_self: bool, cli: &mut super::MessageProxy) {
         let me = self.hands
             .iter()
             .position(|hand| &hand.player == user)
             .unwrap();
 
         cli.send(user, "The other players' hands (in turn order) are:");
-        for i in 1..self.hands.len() {
+        for i in 0..self.hands.len() {
             let hand = (me + i) % self.hands.len();
             if hand == self.turn {
                 cli.send(
@@ -322,14 +322,21 @@ impl Game {
                 .iter()
                 .map(|card| (format!("{}", card), card.known()))
                 .unzip();
-            cli.send(
-                user,
-                &format!(
-                    "{} in hand\n{} known",
-                    &cards.join("  |  "),
-                    &known.join("  |  ")
-                ),
-            );
+
+            if hand == me {
+                if !skip_self {
+                    cli.send(user, &format!("{} known", &known.join("  |  ")));
+                }
+            } else {
+                cli.send(
+                    user,
+                    &format!(
+                        "{} in hand\n{} known",
+                        &cards.join("  |  "),
+                        &known.join("  |  ")
+                    ),
+                );
+            }
         }
     }
 
@@ -479,7 +486,7 @@ impl Game {
             cli.send(user, &known.join("  |  "));
 
             cli.send(user, "");
-            self.show_hands(user, cli);
+            self.show_hands(user, true, cli);
 
             cli.send(
                 user,
