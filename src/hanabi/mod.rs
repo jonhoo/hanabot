@@ -462,6 +462,16 @@ impl Game {
             ),
         );
 
+        if !self.deck.is_empty() && self.deck.len() < 2 * self.hands.len() {
+            cli.send(
+                user,
+                &format!(
+                    "*There are only {} cards left in the deck!*",
+                    self.deck.len()
+                ),
+            );
+        }
+
         let stacks: Vec<_> = COLOR_ORDER
             .iter()
             .map(|&color| if let Some(top) = self.played.get(&color) {
