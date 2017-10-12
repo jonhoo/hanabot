@@ -97,7 +97,9 @@ struct Runner {
 
 impl slack::EventHandler for Runner {
     fn on_connect(&mut self, cli: &RtmClient) {
-        self.state.on_connect(cli)
+        if self.running.load(Ordering::SeqCst) {
+            self.state.on_connect(cli)
+        }
     }
 
     fn on_event(&mut self, cli: &RtmClient, event: Event) {
