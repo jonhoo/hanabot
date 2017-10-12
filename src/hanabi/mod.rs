@@ -401,8 +401,15 @@ impl Game {
                     &hand.player,
                     &format!(
                         "Game over :slightly_frowning_face:\n\
-                         You got {}/25 points.",
-                        points
+                         You got {}/25 points.\n\
+                         Your hand at the end was:\n\
+                         {}",
+                        points,
+                        hand.cards
+                            .iter()
+                            .map(|c| format!("{}", c))
+                            .collect::<Vec<_>>()
+                            .join("  |  ")
                     ),
                 );
             }
