@@ -359,6 +359,26 @@ impl Game {
         }
     }
 
+    fn score_smiley(&self, points: usize) -> &'static str {
+        if points >= 25 {
+            ":tada:"
+        } else if points >= 24 {
+            ":tired_face:"
+        } else if points >= 23 {
+            ":slightly_smiling_face:"
+        } else if points >= 22 {
+            ":neutral_face:"
+        } else if points >= 20 {
+            ":confused:"
+        } else if points >= 15 {
+            ":slightly_frowning_face:"
+        } else if points >= 10 {
+            ":disapppointed:"
+        } else {
+            ":face_with_rolling_eyes:"
+        }
+    }
+
     /// Progress the current game following a turn, and return true if the game has ended.
     ///
     /// This will inform all the users about the current state of the board.
@@ -400,10 +420,11 @@ impl Game {
                 cli.send(
                     &hand.player,
                     &format!(
-                        "Game over :slightly_frowning_face:\n\
+                        "Game over {}\n\
                          You got {}/25 points.\n\
                          Your hand at the end was:\n\
                          {}",
+                        self.score_smiley(points),
                         points,
                         hand.cards
                             .iter()
@@ -419,7 +440,13 @@ impl Game {
         if points == 25 {
             // the game has ended in a win \o/
             for hand in &self.hands {
-                cli.send(&hand.player, "You won the game with 25/25 points :tada:");
+                cli.send(
+                    &hand.player,
+                    &format!(
+                        "You won the game with 25/25 points {}",
+                        self.score_smiley(points)
+                    ),
+                );
             }
             return true;
         }
