@@ -44,9 +44,10 @@ During play, a player can play, clue, and discard:
    number (e.g., `two`). The leading `clue` keyword is optional.
 
 In addition, use `hands` to show all players' hands, and what each
-player knows about their hand, `discards` to show the discard pile, and
-`ping` to remind the current player that it's their turn. You can also
-terminate the current game using `quit`.
+player knows about their hand, `discards` to show the discard pile,
+`deck` to show the number of cards left in the deck, and `ping` to
+remind the current player that it's their turn. You can also terminate
+the current game using `quit`.
 
 When new cards are drawn, they appear on the right-hand side of your
 hand.

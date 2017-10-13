@@ -148,19 +148,23 @@ impl Card {
 
 
 #[derive(Serialize, Deserialize)]
-pub(super) struct Deck(Vec<Card>);
+pub(super) struct Deck(usize, Vec<Card>);
 
 impl Deck {
     pub(super) fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.1.is_empty()
     }
 
     pub(super) fn len(&self) -> usize {
-        self.0.len()
+        self.1.len()
+    }
+
+    pub(super) fn of(&self) -> usize {
+        self.0
     }
 
     pub(super) fn draw(&mut self) -> Option<Card> {
-        self.0.pop()
+        self.1.pop()
     }
 }
 
@@ -194,7 +198,7 @@ impl Default for Deck {
             .collect();
 
         thread_rng().shuffle(&mut cards[..]);
-        Deck(cards)
+        Deck(cards.len(), cards)
     }
 }
 

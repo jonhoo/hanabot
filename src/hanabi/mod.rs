@@ -359,6 +359,27 @@ impl Game {
         }
     }
 
+    /// Show `user` the current state of the deck.
+    pub(crate) fn show_deck(&self, user: &str, cli: &mut super::MessageProxy) {
+        if self.deck.is_empty() {
+            cli.send(user, "The deck is depleted.");
+            return;
+        }
+
+        let width = 10;
+        let through: usize =
+            (width as f64 * self.deck.len() as f64 / self.deck.of() as f64).round() as usize;
+        let progress = format!(
+            "`[{}{}]` {} cards left",
+            "-".repeat(through),
+            " ".repeat(width - through),
+            self.deck.of() - self.deck.len()
+        ).replace("- ", "> ");
+
+
+        cli.send(user, &progress);
+    }
+
     fn score_smiley(&self, points: usize) -> &'static str {
         if points >= 25 {
             ":tada:"

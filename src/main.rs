@@ -283,8 +283,9 @@ impl slack::EventHandler for Hanabi {
                                To `clue`, you give the player you are cluing (`@player`), \
                                and the clue you want to give (e.g., `red`, `one`).\n\
                                \n\
-                               To look around, you can use `hands` or `discards`. The former will \
-                               tell you what each player has and knows, and the latter will show \
+                               To look around, you can use `hands`, `deck`, or `discards`. \
+                               `hands` will tell you what each player has and knows, `deck` will \
+                               show you the number of cards left, and `discards` will show \
                                you the discard pile. If everything goes south, you can always use \
                                `quit` to give up.\n\
                                \n\
@@ -584,6 +585,9 @@ impl Hanabi {
             }
             Some("hands") => {
                 self.games[&game_id].show_hands(user, false, msgs);
+            }
+            Some("deck") => {
+                self.games[&game_id].show_deck(user, msgs);
             }
             Some("clue") => {
                 let player = command.next();
