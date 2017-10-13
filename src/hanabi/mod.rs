@@ -374,13 +374,13 @@ impl Game {
         }
 
         let width = 10;
-        let through: usize =
+        let left: usize =
             (width as f64 * self.deck.len() as f64 / self.deck.of() as f64).round() as usize;
         let progress = format!(
             "`[{}{}]` {} cards left",
-            "-".repeat(through),
-            " ".repeat(width - through),
-            self.deck.of() - self.deck.len()
+            "-".repeat(width - left),
+            " ".repeat(left),
+            self.deck.len()
         ).replace("- ", "> ");
 
 
