@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime, SystemTimeError};
 
 mod components;
 use self::components::{Card, Deck, Hand};
@@ -15,11 +15,8 @@ const COLOR_ORDER: [Color; 5] = [
     Color::Yellow,
 ];
 
-/// Pretty-print and restart last move time.
-fn dur(start: &mut SystemTime) -> String {
-    let t = start.elapsed();
-    *start = SystemTime::now();
-
+/// Pretty-print a duration.
+fn dur(t: Result<Duration, SystemTimeError>) -> String {
     if t.is_err() {
         return "a while".to_owned();
     }
@@ -35,6 +32,14 @@ fn dur(start: &mut SystemTime) -> String {
         format!("{} seconds", t)
     }
 }
+
+/// Pretty-print and restart last move time.
+fn dur_mod(start: &mut SystemTime) -> String {
+    let t = start.elapsed();
+    *start = SystemTime::now();
+    dur(t)
+}
+
 
 #[derive(Serialize, Deserialize)]
 struct Move {
@@ -74,6 +79,7 @@ pub(crate) struct Game {
     turn: usize,
 
     last_turns: Option<usize>,
+    started: SystemTime,
 }
 
 impl Game {
@@ -110,6 +116,7 @@ impl Game {
             turn: 0,
 
             last_turns: None,
+            started: SystemTime::now(),
         }
     }
 
@@ -156,7 +163,7 @@ impl Game {
                     num,
                     if num == 1 { "card is" } else { "cards are" },
                     clue,
-                    dur(&mut self.last_move_at),
+                    dur_mod(&mut self.last_move_at),
                 );
                 self.last_move = Move::new(self.turn, did.clone(), did);
                 self.clues -= 1;
@@ -221,7 +228,7 @@ impl Game {
                     "<@{}> incorrectly played a {} after {}",
                     self.hands[self.turn].player,
                     card,
-                    dur(&mut self.last_move_at),
+                    dur_mod(&mut self.last_move_at),
                 );
                 self.last_move = Move::new(self.turn, did.clone(), format!("{}{}", did, drew));
 
@@ -235,7 +242,7 @@ impl Game {
                     "<@{}> played a {} after {}",
                     self.hands[self.turn].player,
                     card,
-                    dur(&mut self.last_move_at),
+                    dur_mod(&mut self.last_move_at),
                 );
                 self.last_move = Move::new(self.turn, did.clone(), format!("{}{}", did, drew));
             }
@@ -280,7 +287,7 @@ impl Game {
                 "<@{}> discarded a {} after {}",
                 self.hands[self.turn].player,
                 card,
-                dur(&mut self.last_move_at),
+                dur_mod(&mut self.last_move_at),
             );
             self.last_move = Move::new(self.turn, did.clone(), format!("{}{}", did, drew));
 
@@ -441,12 +448,13 @@ impl Game {
                 cli.send(
                     &hand.player,
                     &format!(
-                        "Game over {}\n\
-                         You got {}/25 points.\n\
+                        "Game over after {}.\n\
+                         You got {}/25 points {}\n\
                          Your hand at the end was:\n\
                          {}",
-                        self.score_smiley(points),
+                        dur(self.started.elapsed()),
                         points,
+                        self.score_smiley(points),
                         hand.cards
                             .iter()
                             .map(|c| format!("{}", c))
@@ -464,7 +472,8 @@ impl Game {
                 cli.send(
                     &hand.player,
                     &format!(
-                        "You won the game with 25/25 points {}",
+                        "You won the game with 25/25 points after {} {}",
+                        dur(self.started.elapsed()),
                         self.score_smiley(points)
                     ),
                 );
