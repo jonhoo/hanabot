@@ -751,6 +751,24 @@ impl Hanabi {
 
         println!("game #{} ended with score {}/25", game_id, game.score());
 
+        let mut players: Vec<_> = game.players().map(|p| format!("<@{}>", p)).collect();
+        players.pop();
+        let mut players = players.join(", ");
+        players.push_str(&game.players()
+            .last()
+            .map(|p| format!(", and <@{}>", p))
+            .unwrap());
+
+        msgs.send(
+            &self.channel,
+            &format!(
+                "Game with {} ended with a score of {}/25 {}",
+                players,
+                game.score(),
+                game.score_smiley()
+            ),
+        );
+
         for player in game.players() {
             self.in_game.remove(player);
             self.waiting.push_back(player.clone());

@@ -385,7 +385,8 @@ impl Game {
         cli.send(user, &progress);
     }
 
-    fn score_smiley(&self, points: usize) -> &'static str {
+    pub fn score_smiley(&self) -> &'static str {
+        let points = self.score();
         if points >= 25 {
             ":tada:"
         } else if points >= 24 {
@@ -452,7 +453,7 @@ impl Game {
                          {}",
                         dur(self.started.elapsed()),
                         points,
-                        self.score_smiley(points),
+                        self.score_smiley(),
                         hand.cards
                             .iter()
                             .map(|c| format!("{}", c))
@@ -472,7 +473,7 @@ impl Game {
                     &format!(
                         "You won the game with 25/25 points after {} {}",
                         dur(self.started.elapsed()),
-                        self.score_smiley(points)
+                        self.score_smiley()
                     ),
                 );
             }
