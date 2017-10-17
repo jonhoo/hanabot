@@ -186,9 +186,6 @@ impl Game {
         let hand = self.turn;
         if let Some(card) = self.hands.get_mut(hand).unwrap().remove(card) {
             self.hands.get_mut(hand).unwrap().draw(&mut self.deck);
-            if self.deck.is_empty() && self.last_turns.is_none() {
-                self.last_turns = Some(0);
-            }
 
             use std::collections::hash_map::Entry;
             let success = match self.played.entry(card.color) {
@@ -253,6 +250,8 @@ impl Game {
                 if *last_turns == hands {
                     return Err(PlayError::GameOver);
                 }
+            } else if self.deck.is_empty() {
+                self.last_turns = Some(0);
             }
             Ok(())
         } else {
@@ -269,10 +268,7 @@ impl Game {
         let hands = self.hands.len();
         let hand = self.turn;
         if let Some(card) = self.hands.get_mut(hand).unwrap().remove(card) {
-            if !self.hands.get_mut(hand).unwrap().draw(&mut self.deck) && self.last_turns.is_none()
-            {
-                self.last_turns = Some(0);
-            }
+            self.hands.get_mut(hand).unwrap().draw(&mut self.deck);
 
             let drew = if self.last_turns.is_none() {
                 format!(
@@ -299,6 +295,8 @@ impl Game {
                 if *last_turns == hands {
                     return Err(DiscardError::GameOver);
                 }
+            } else if self.deck.is_empty() {
+                self.last_turns = Some(0);
             }
             Ok(())
         } else {
