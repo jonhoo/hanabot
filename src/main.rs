@@ -349,9 +349,10 @@ impl<'a> MessageProxy<'a> {
 
     pub fn flush(&mut self, user_to_channel: &HashMap<String, String>) {
         for (user, msgs) in self.msgs.drain() {
-            let _ = self.cli
-                .sender()
-                .send_message(&user_to_channel[&user], &msgs.join("\n"));
+            let _ = self.cli.sender().send_message(
+                &user_to_channel.get(&user).unwrap_or(&user),
+                &msgs.join("\n"),
+            );
         }
     }
 }
