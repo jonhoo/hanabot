@@ -80,14 +80,7 @@ fn main() {
     }
 
     // we're exiting; serialize state so we can later resume
-    match File::create("state.json") {
-        Ok(f) => if let Err(e) = serde_json::to_writer(BufWriter::new(f), &r.state) {
-            eprintln!("Failed to save game state: {}", e);
-        },
-        Err(e) => {
-            eprintln!("Failed to save game state: {}", e);
-        }
-    }
+    r.state.save();
 }
 
 struct Runner {
@@ -398,6 +391,17 @@ impl Default for Hanabi {
 }
 
 impl Hanabi {
+    pub fn save(&self) {
+        match File::create("state.json") {
+            Ok(f) => if let Err(e) = serde_json::to_writer(BufWriter::new(f), self) {
+                eprintln!("Failed to save game state: {}", e);
+            },
+            Err(e) => {
+                eprintln!("Failed to save game state: {}", e);
+            }
+        }
+    }
+
     /// Determine whether we can start a new game, and notify players if they can force a new game
     /// to start. Should be called when the number of waiting players has changed.
     fn on_player_change(&mut self, msgs: &mut MessageProxy) {
@@ -743,6 +747,7 @@ impl Hanabi {
             msgs.flush(&self.playing_users);
             self.end_game(game_id, msgs);
         }
+        self.save();
     }
 
     /// Called to end a game.
