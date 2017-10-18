@@ -400,7 +400,7 @@ impl Game {
         } else if points >= 15 {
             ":slightly_frowning_face:"
         } else if points >= 10 {
-            ":disapppointed:"
+            ":disappointed:"
         } else {
             ":face_with_rolling_eyes:"
         }
