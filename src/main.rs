@@ -775,9 +775,16 @@ impl Hanabi {
             ),
         );
 
-        for player in game.players() {
-            self.in_game.remove(player);
-            self.waiting.push_back(player.clone());
+        use rand::{thread_rng, Rng};
+        let mut players: Vec<_> = game.players().cloned().collect();
+
+        // shuffle players so we don't add them back to the queue in the same order they were in
+        // when we started the game. if we don't do this, games would always have basically the
+        // same player order (though `start` player does go first).
+        thread_rng().shuffle(&mut players[..]);
+        for player in players {
+            self.in_game.remove(&player);
+            self.waiting.push_back(player);
         }
         self.on_player_change(msgs);
     }
