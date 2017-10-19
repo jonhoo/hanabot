@@ -704,24 +704,25 @@ impl Hanabi {
                     .unwrap()
                     .discard(card.unwrap() - 1)
                 {
-                    Ok(()) => {
-                        self.progress_game(game_id, msgs);
-                    }
+                    Ok(()) => {}
                     Err(hanabi::DiscardError::NoSuchCard) => {
                         msgs.send(
                             user,
                             "The card you specified is not in your hand. \
                              Remember that card indexing starts at 1.",
                         );
+                        return;
                     }
                     Err(hanabi::DiscardError::MaxClues) => {
                         msgs.send(
                             user,
                             "All 8 clue tokens are available, so discard is disallowed.",
                         );
+                        return;
                     }
                     Err(hanabi::DiscardError::GameOver) => {}
                 }
+                self.progress_game(game_id, msgs);
             }
             Some(cmd) => {
                 msgs.send(
