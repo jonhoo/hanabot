@@ -3,7 +3,7 @@ to play the cooperative card game
 [Hanabi](https://en.wikipedia.org/wiki/Hanabi_(card_game)) with one
 another.
 
-![Hanabi box and cards](https://cf.geekdo-images.com/images/pic1600613_lg.jpg)
+![Slack gameplay screenshot](preview.png)
 
 ## Installation
 
