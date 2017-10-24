@@ -44,22 +44,22 @@ fn dur_mod(start: &mut SystemTime) -> String {
 #[derive(Serialize, Deserialize)]
 struct Move {
     player: usize,
-    for_player: String,
+    for_public: String,
     for_others: String,
 }
 
 impl Move {
-    pub fn new(player: usize, for_player: String, for_others: String) -> Move {
+    pub fn new(player: usize, for_public: String, for_others: String) -> Move {
         Move {
             player,
-            for_player,
+            for_public,
             for_others,
         }
     }
 
     pub fn show_to(&self, player: usize) -> &str {
         if player == self.player {
-            &*self.for_player
+            &*self.for_public
         } else {
             &*self.for_others
         }
@@ -80,6 +80,8 @@ pub(crate) struct Game {
 
     last_turns: Option<usize>,
     started: SystemTime,
+
+    is_unwinnable: bool,
 }
 
 impl Game {
@@ -117,6 +119,8 @@ impl Game {
 
             last_turns: None,
             started: SystemTime::now(),
+
+            is_unwinnable: false,
         }
     }
 
@@ -404,6 +408,43 @@ impl Game {
         } else {
             ":face_with_rolling_eyes:"
         }
+    }
+
+    pub fn became_unwinnable(&mut self) -> bool {
+        if self.is_unwinnable {
+            return false;
+        }
+
+        // look through the discard pile, and see if all the copies of a given number for any color
+        // has been discarded. if so, the game is no longer winnable.
+        for (_, cards) in &self.discard {
+            let mut number = cards[0].number;
+            let mut n = 0;
+            for card in cards {
+                if card.number == number {
+                    n += 1;
+                } else {
+                    number = card.number;
+                    n = 1;
+                }
+
+                let total = match number {
+                    Number::One => 3,
+                    Number::Five => 1,
+                    _ => 2,
+                };
+                if n == total {
+                    self.is_unwinnable = true;
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
+    pub fn last_move(&self) -> &str {
+        &*self.last_move.for_public
     }
 
     /// Progress the current game following a turn, and return true if the game has ended.

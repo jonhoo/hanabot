@@ -744,17 +744,23 @@ impl Hanabi {
         if self.games.get_mut(&game_id).unwrap().progress_game(msgs) {
             msgs.flush(&self.playing_users);
             self.end_game(game_id, msgs);
+        } else if self.games.get_mut(&game_id).unwrap().became_unwinnable() {
+            // last move caused game to be unwinnable -- call someone out
+            msgs.send(
+                &self.channel,
+                &format!(
+                    "{} became unwinnable after {}",
+                    self.desc_game(game_id),
+                    self.games[&game_id].last_move()
+                ),
+            );
         }
+
         self.save();
     }
 
-    /// Called to end a game.
-    fn end_game(&mut self, game_id: usize, msgs: &mut MessageProxy) {
-        // game has ended
-        let game = self.games.remove(&game_id).unwrap();
-
-        println!("game #{} ended with score {}/25", game_id, game.score());
-
+    fn desc_game(&self, game_id: usize) -> String {
+        let game = &self.games[&game_id];
         let mut players: Vec<_> = game.players().map(|p| format!("<@{}>", p)).collect();
         players.pop();
         let mut players = players.join(", ");
@@ -763,11 +769,21 @@ impl Hanabi {
             .map(|p| format!(", and <@{}>", p))
             .unwrap());
 
+        format!("Game with {}", players)
+    }
+
+    /// Called to end a game.
+    fn end_game(&mut self, game_id: usize, msgs: &mut MessageProxy) {
+        // game has ended
+        let desc = self.desc_game(game_id);
+        let game = self.games.remove(&game_id).unwrap();
+
+        println!("game #{} ended with score {}/25", game_id, game.score());
         msgs.send(
             &self.channel,
             &format!(
-                "Game with {} ended with a score of {}/25 {}",
-                players,
+                "{} ended with a score of {}/25 {}",
+                desc,
                 game.score(),
                 game.score_smiley()
             ),
