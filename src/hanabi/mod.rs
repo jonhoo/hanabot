@@ -87,8 +87,13 @@ pub(crate) struct Game {
 impl Game {
     /// Start a new game for the given players with a freshly shuffled deck.
     pub(crate) fn new(players: &[String]) -> Self {
+        // shuffle player order
+        use rand::thread_rng;
+        let mut playerOrder = players.to_vec();
+        thread_rng().shuffle(&mut playerOrder[..]);
+
         let mut deck = Deck::default();
-        let mut hands: Vec<_> = players
+        let mut hands: Vec<_> = playerOrder
             .into_iter()
             .map(|player| Hand::new(player))
             .collect();
@@ -160,7 +165,8 @@ impl Game {
 
         match hand.clue(self.turn, clue) {
             Ok(num) => {
-                let did = format!(
+                let did =
+                    format!(
                     "<@{}> clued <@{}> that {} {} {} after {}",
                     player,
                     to,
@@ -193,25 +199,29 @@ impl Game {
 
             use std::collections::hash_map::Entry;
             let success = match self.played.entry(card.color) {
-                Entry::Vacant(e) => if card.number == Number::One {
-                    e.insert(Number::One);
-                    true
-                } else {
-                    false
-                },
-                Entry::Occupied(mut e) => if card.number == *e.get() + 1 {
-                    e.insert(card.number);
-                    if card.number == Number::Five {
-                        // completed a stack!
-                        // get a clue.
-                        if self.clues < 8 {
-                            self.clues += 1;
-                        }
+                Entry::Vacant(e) => {
+                    if card.number == Number::One {
+                        e.insert(Number::One);
+                        true
+                    } else {
+                        false
                     }
-                    true
-                } else {
-                    false
-                },
+                }
+                Entry::Occupied(mut e) => {
+                    if card.number == *e.get() + 1 {
+                        e.insert(card.number);
+                        if card.number == Number::Five {
+                            // completed a stack!
+                            // get a clue.
+                            if self.clues < 8 {
+                                self.clues += 1;
+                            }
+                        }
+                        true
+                    } else {
+                        false
+                    }
+                }
             };
 
             let drew = if self.last_turns.is_none() {
@@ -225,7 +235,8 @@ impl Game {
 
             if !success {
                 self.lives -= 1;
-                let did = format!(
+                let did =
+                    format!(
                     "<@{}> incorrectly played a {} after {}",
                     self.hands[self.turn].player,
                     card,
@@ -239,7 +250,8 @@ impl Game {
                     return Err(PlayError::GameOver);
                 }
             } else {
-                let did = format!(
+                let did =
+                    format!(
                     "<@{}> played a {} after {}",
                     self.hands[self.turn].player,
                     card,
@@ -283,7 +295,8 @@ impl Game {
                 "".to_owned()
             };
 
-            let did = format!(
+            let did =
+                format!(
                 "<@{}> discarded a {} after {}",
                 self.hands[self.turn].player,
                 card,
@@ -376,8 +389,8 @@ impl Game {
         }
 
         let width = 10;
-        let left: usize =
-            (width as f64 * self.deck.len() as f64 / self.deck.of() as f64).round() as usize;
+        let left: usize = (width as f64 * self.deck.len() as f64 / self.deck.of() as f64)
+            .round() as usize;
         let progress = format!(
             "`[{}{}]` {} cards left",
             "-".repeat(width - left),
@@ -466,9 +479,10 @@ impl Game {
 
         if !self.last_move.show_to(0).is_empty() {
             for (i, hand) in self.hands.iter().enumerate() {
-                let mut m = self.last_move
-                    .show_to(i)
-                    .replace(&format!("<@{}>", hand.player), "you");
+                let mut m = self.last_move.show_to(i).replace(
+                    &format!("<@{}>", hand.player),
+                    "you",
+                );
                 if m.starts_with("you") {
                     m = m.replacen("you", "You", 1);
                 }
