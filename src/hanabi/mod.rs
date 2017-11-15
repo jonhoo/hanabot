@@ -455,15 +455,6 @@ impl Game {
     /// This *could* be called automatially internally, but it'd make the return types of all the
     /// action methods somewhat annoying.
     pub(crate) fn progress_game(&mut self, cli: &mut super::MessageProxy) -> bool {
-        // empty line
-        let divider = "--------------------------------------------------------------------------";
-        for hand in &self.hands {
-            // avoid `hanabot: --------------------`
-            cli.send(&hand.player, ":point_down:");
-            // spacer
-            cli.send(&hand.player, divider);
-        }
-
         if !self.last_move.show_to(0).is_empty() {
             for (i, hand) in self.hands.iter().enumerate() {
                 let mut m = self.last_move
@@ -472,8 +463,8 @@ impl Game {
                 if m.starts_with("you") {
                     m = m.replacen("you", "You", 1);
                 }
+                let m = format!(":point_right: {}", m);
                 cli.send(&hand.player, &m);
-                cli.send(&hand.player, divider);
             }
         }
 
@@ -559,7 +550,7 @@ impl Game {
         cli.send(
             user,
             &format!(
-                "{}, and there are *{}* :information_source: and {} :bomb: remaining.",
+                ":hourglass: {}; *{}* :information_source: and {} :bomb: remain.",
                 setup,
                 self.clues,
                 self.lives
@@ -570,7 +561,7 @@ impl Game {
             cli.send(
                 user,
                 &format!(
-                    "*There are only {} cards left in the deck!*",
+                    ":warning: *There are only {} cards left in the deck!*",
                     self.deck.len()
                 ),
             );
@@ -578,15 +569,18 @@ impl Game {
 
         let stacks: Vec<_> = COLOR_ORDER
             .iter()
-            .map(|&color| if let Some(top) = self.played.get(&color) {
-                format!("{} {}", color, top)
-            } else {
-                format!("{} :zero:", color)
+            .map(|&color| {
+                if let Some(top) = self.played.get(&color) {
+                    format!("{} {}", color, top)
+                } else {
+                    format!("{} :zero:", color)
+                }
             })
             .collect();
-        cli.send(user, &format!("Played:\n{}", stacks.join("  |  ")));
 
         if self.turn == hand {
+            cli.send(user, &format!("Played:\n{}", stacks.join("  |  ")));
+
             // it is our turn.
             // show what we know about our hand, and the hands of the following players
 
@@ -608,14 +602,7 @@ impl Game {
             );
         } else {
             // it is *not* our turn.
-            // we want to show the hand of the current player, and what they know.
-            cli.send(user, "The current player's hand is:");
-            let cards: Vec<_> = self.hands[self.turn]
-                .cards
-                .iter()
-                .map(|c| format!("{}", c))
-                .collect();
-            cli.send(&user, &format!("{}", cards.join("  |  ")));
+            // let's not disturb the other players with extraneous information
         }
     }
 }
