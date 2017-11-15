@@ -463,7 +463,7 @@ impl Game {
                 if m.starts_with("you") {
                     m = m.replacen("you", "You", 1);
                 }
-                let m = format!(":point_right: {}", m);
+                let m = format!(".\n:point_right: {}", m);
                 cli.send(&hand.player, &m);
             }
         }
