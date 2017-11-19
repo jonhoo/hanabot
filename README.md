@@ -7,6 +7,7 @@ another.
 
 ## Installation
 
+ 0. Download and install [Rust](https://www.rust-lang.org/).
  1. Create a new bot user [here](https://my.slack.com/services/new/bot).
  2. Note down the bot user's *API Token*.
  3. Invite the bot user to a channel called `#hanabi` (it may be
