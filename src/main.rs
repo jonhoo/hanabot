@@ -410,24 +410,18 @@ impl Hanabi {
                 // can't start a game yet
                 return;
             }
-            2 | 3 | 4 => {
-                // *could* start a game if the users don't want to wait
+            _ => {
+                // *could* start a game if the users are ready
                 let message = format!(
-                    "I have {} other available players, so we *could* start a game.\n\
-                     If you'd like to do so instead of waiting for five players, \
-                     just send me the message `start`.",
+                    "I have {} other available players, so we can start a game.\n\
+                     Use `start` to do so. \
+                     You can optionally pass the number of players to include.",
                     self.waiting.len() - 1
                 );
                 for p in &self.waiting {
                     msgs.send(p, &message);
                 }
                 return;
-            }
-            5 | _ => {
-                // start a new game with 5 players
-                self.start_game(None, msgs);
-                // and also check if we can start a second game
-                self.on_player_change(msgs);
             }
         }
     }
