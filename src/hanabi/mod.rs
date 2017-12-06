@@ -551,9 +551,7 @@ impl Game {
             user,
             &format!(
                 ":hourglass: {}; *{}* :information_source: and {} :bomb: remain.",
-                setup,
-                self.clues,
-                self.lives
+                setup, self.clues, self.lives
             ),
         );
 

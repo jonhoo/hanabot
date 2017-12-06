@@ -560,8 +560,7 @@ impl Hanabi {
                         player,
                         &format!(
                             "The game was ended prematurely by <@{}> with a score of {}/25",
-                            user,
-                            score
+                            user, score
                         ),
                     );
                 }
