@@ -431,7 +431,7 @@ impl Hanabi {
     /// If `user` is not `None`, then `user` tried to force a game to start despite there not being
     /// a full five waiting players. If this is the case, `user` should certainly be included in
     /// the new game (assuming there are at least two free players).
-    fn start_game(&mut self, user: Option<&str>, msgs: &mut MessageProxy) {
+    fn start_game(&mut self, user: Option<&str>, users: Option<usize>, msgs: &mut MessageProxy) {
         let mut players = Vec::new();
 
         if let Some(u) = user {
@@ -447,14 +447,14 @@ impl Hanabi {
             }
         }
 
-        while players.len() < 5 {
+        let users = users.unwrap_or(5);
+        while players.len() < users && players.len() <= 5 {
             if let Some(u) = self.waiting.pop_front() {
                 players.push(u);
             } else {
                 break;
             }
         }
-        assert!(players.len() <= 5);
 
         if players.len() < 2 {
             // no game -- not enough players
@@ -503,13 +503,31 @@ impl Hanabi {
 
     /// Handle a turn command by the given `user`.
     fn handle_move(&mut self, user: &str, text: &str, msgs: &mut MessageProxy) {
-        if text.to_lowercase() == "start" {
+        let mut command = text.split_whitespace().peekable();
+
+        if command
+            .peek()
+            .map(|s| s.to_lowercase() == "start")
+            .unwrap_or(false)
+        {
             if self.in_game.contains_key(user) {
                 // game has already started, so ignore this
                 return;
             }
+
+            command.next().is_some();
+            let nplayers = command.peek().and_then(|n| n.parse().ok());
+
+            if command.next().is_some() && nplayers.is_none() {
+                msgs.send(
+                    user,
+                    "You can only give an integral number of players to start a game with",
+                );
+                return;
+            }
+
             // the user wants to start the game even though there aren't enough players
-            self.start_game(Some(user), msgs);
+            self.start_game(Some(user), nplayers, msgs);
             return;
         }
 
@@ -522,8 +540,6 @@ impl Hanabi {
             );
             return;
         };
-
-        let mut command = text.split_whitespace().peekable();
 
         let cmd = match command.peek() {
             Some(cmd) if cmd.starts_with("<@") && cmd.ends_with(">") => Some("clue"),
