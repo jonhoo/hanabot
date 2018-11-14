@@ -5,6 +5,8 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate slack;
 
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 use slack::{Event, Message, RtmClient};
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -798,13 +800,12 @@ impl Hanabi {
             ),
         );
 
-        use rand::{thread_rng, Rng};
         let mut players: Vec<_> = game.players().cloned().collect();
 
         // shuffle players so we don't add them back to the queue in the same order they were in
         // when we started the game. if we don't do this, games would always have basically the
         // same player order (though `start` player does go first).
-        thread_rng().shuffle(&mut players[..]);
+        players.shuffle(&mut thread_rng());
         for player in players {
             self.in_game.remove(&player);
             self.waiting.push_back(player);

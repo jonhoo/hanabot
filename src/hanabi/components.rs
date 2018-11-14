@@ -1,3 +1,5 @@
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 use std::collections::LinkedList;
 
 /// An error that occurred while giving a clue.
@@ -170,8 +172,6 @@ impl Deck {
 
 impl Default for Deck {
     fn default() -> Self {
-        use rand::{thread_rng, Rng};
-
         let numbers = vec![
             Number::One,
             Number::One,
@@ -197,7 +197,7 @@ impl Default for Deck {
             })
             .collect();
 
-        thread_rng().shuffle(&mut cards[..]);
+        cards.shuffle(&mut thread_rng());
         Deck(cards.len(), cards)
     }
 }

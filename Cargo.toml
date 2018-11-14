@@ -13,10 +13,11 @@ repository = "https://github.com/jonhoo/hanabot.git"
 keywords = ["bot","slack","hanabi"]
 
 license = "MIT/Apache-2.0"
+
 [dependencies]
-slack = "0.19.0"
-rand = "0.3"
+slack = "0.22.0"
+rand = "0.6"
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
-ctrlc = { version = "3.0", features = ["termination"] }
+ctrlc = { version = "3.1", features = ["termination"] }
