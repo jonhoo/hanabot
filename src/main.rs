@@ -9,10 +9,10 @@ use rand::seq::SliceRandom;
 use rand::thread_rng;
 use slack::{Event, Message, RtmClient};
 use std::collections::{HashMap, VecDeque};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 mod hanabi;
 use hanabi::{Clue, Color, Game, Number};
@@ -51,7 +51,8 @@ fn main() {
     let r = running.clone();
     ctrlc::set_handler(move || {
         r.store(false, Ordering::SeqCst);
-    }).expect("Error setting Ctrl-C handler");
+    })
+    .expect("Error setting Ctrl-C handler");
 
     let handler: Hanabi = File::open("state.json")
         .map_err(|_| ())
@@ -119,7 +120,8 @@ impl slack::EventHandler for Runner {
 impl slack::EventHandler for Hanabi {
     fn on_connect(&mut self, cli: &RtmClient) {
         // join the #hanabi channel
-        let channel = cli.start_response()
+        let channel = cli
+            .start_response()
             .channels
             .as_ref()
             .and_then(|channels| {
@@ -129,7 +131,8 @@ impl slack::EventHandler for Hanabi {
                 })
             })
             .and_then(|chan| chan.id.as_ref());
-        let group = cli.start_response()
+        let group = cli
+            .start_response()
             .groups
             .as_ref()
             .and_then(|groups| {
@@ -141,7 +144,8 @@ impl slack::EventHandler for Hanabi {
             .and_then(|group| group.id.as_ref());
 
         // we want to know our own id, so we know when we're mentioned by name
-        self.me = cli.start_response()
+        self.me = cli
+            .start_response()
             .slf
             .as_ref()
             .and_then(|u| u.id.clone())
@@ -167,147 +171,155 @@ impl slack::EventHandler for Hanabi {
     fn on_event(&mut self, cli: &RtmClient, event: Event) {
         //println!("on_event(event: {:?})", event);
         match event {
-            Event::Message(m) => if let Message::Standard(m) = *m {
-                if m.user.is_none() || m.text.is_none() || m.channel.is_none() {
-                    return;
-                }
+            Event::Message(m) => {
+                if let Message::Standard(m) = *m {
+                    if m.user.is_none() || m.text.is_none() || m.channel.is_none() {
+                        return;
+                    }
 
-                let u = m.user.as_ref().unwrap();
-                let t = m.text.as_ref().unwrap();
-                let c = m.channel.as_ref().unwrap();
+                    let u = m.user.as_ref().unwrap();
+                    let t = m.text.as_ref().unwrap();
+                    let c = m.channel.as_ref().unwrap();
 
-                let prefix = format!("<@{}> ", self.me);
+                    let prefix = format!("<@{}> ", self.me);
 
-                // first and foremost, if this message isn't for us, ignore it
-                if c == &self.channel && !t.starts_with(&prefix) {
+                    // first and foremost, if this message isn't for us, ignore it
+                    if c == &self.channel && !t.starts_with(&prefix) {
+                        if t.to_lowercase() == "join" {
+                            // some poor user tried to join -- help them out
+                            let _ = cli
+                                .sender()
+                                .send_message(c, &format!("<@{}> please dm me instead", u));
+                        }
+                        return;
+                    }
+
+                    let t = t.trim_left_matches(&prefix);
                     if t.to_lowercase() == "join" {
-                        // some poor user tried to join -- help them out
-                        let _ = cli.sender()
-                            .send_message(c, &format!("<@{}> please dm me instead", u));
-                    }
-                    return;
-                }
+                        if c == &self.channel {
+                            // we need to know the DM channel ID, so force the user to DM us
+                            let _ = cli
+                                .sender()
+                                .send_message(c, &format!("<@{}> please dm me instead", u));
+                        } else if self.playing_users.insert(u.clone(), c.clone()).is_none() {
+                            let _ = cli.sender().send_message(
+                                c,
+                                "\
+                                 Welcome! \
+                                 I'll get you started with a game \
+                                 as soon as there are some other \
+                                 players available.",
+                            );
+                            println!("user {} joined game with channel {}", u, c);
 
-                let t = t.trim_left_matches(&prefix);
-                if t.to_lowercase() == "join" {
-                    if c == &self.channel {
-                        // we need to know the DM channel ID, so force the user to DM us
-                        let _ = cli.sender()
-                            .send_message(c, &format!("<@{}> please dm me instead", u));
-                    } else if self.playing_users.insert(u.clone(), c.clone()).is_none() {
-                        let _ = cli.sender().send_message(
-                            c,
-                            "\
-                             Welcome! \
-                             I'll get you started with a game \
-                             as soon as there are some other \
-                             players available.",
+                            self.waiting.push_back(u.clone());
+
+                            let mut messages = MessageProxy::new(cli);
+                            self.on_player_change(&mut messages);
+                            messages.flush(&self.playing_users);
+                        }
+                    } else if t.to_lowercase() == "leave" {
+                        if self.playing_users.contains_key(u) {
+                            // the user wants to leave
+                            let mut messages = MessageProxy::new(cli);
+
+                            // first make them quit.
+                            if self.in_game.contains_key(u) {
+                                self.handle_move(u, "quit", &mut messages);
+                            }
+
+                            // then make them not wait anymore.
+                            if let Some(i) = self.waiting.iter().position(|p| p == u) {
+                                println!("user {} left", u);
+                                self.waiting.remove(i);
+                            } else {
+                                println!("user {} wanted to leave, but not waiting?", u);
+                            }
+
+                            // let them know we removed them
+                            messages.send(u, "I have stricken you from all my lists.");
+                            messages.flush(&self.playing_users);
+
+                            // then actually remove
+                            self.playing_users.remove(u);
+                        }
+                    } else if t.to_lowercase() == "players" {
+                        let mut out = format!(
+                            "There are currently {} games and {} players:",
+                            self.games.len(),
+                            self.playing_users.len()
                         );
-                        println!("user {} joined game with channel {}", u, c);
-
-                        self.waiting.push_back(u.clone());
-
-                        let mut messages = MessageProxy::new(cli);
-                        self.on_player_change(&mut messages);
-                        messages.flush(&self.playing_users);
-                    }
-                } else if t.to_lowercase() == "leave" {
-                    if self.playing_users.contains_key(u) {
-                        // the user wants to leave
-                        let mut messages = MessageProxy::new(cli);
-
-                        // first make them quit.
-                        if self.in_game.contains_key(u) {
-                            self.handle_move(u, "quit", &mut messages);
+                        for (game_id, game) in &self.games {
+                            out.push_str(&format!(
+                                "\n#{}: <@{}>",
+                                game_id,
+                                game.players()
+                                    .map(|p| &**p)
+                                    .collect::<Vec<_>>()
+                                    .join(">, <@")
+                            ));
                         }
-
-                        // then make them not wait anymore.
-                        if let Some(i) = self.waiting.iter().position(|p| p == u) {
-                            println!("user {} left", u);
-                            self.waiting.remove(i);
+                        if self.waiting.is_empty() {
+                            out.push_str("\nNo players waiting.");
                         } else {
-                            println!("user {} wanted to leave, but not waiting?", u);
+                            out.push_str(&format!(
+                                "\nWaiting: {}",
+                                self.waiting
+                                    .iter()
+                                    .map(|p| format!("<@{}>", p))
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            ));
                         }
-
-                        // let them know we removed them
-                        messages.send(u, "I have stricken you from all my lists.");
-                        messages.flush(&self.playing_users);
-
-                        // then actually remove
-                        self.playing_users.remove(u);
-                    }
-                } else if t.to_lowercase() == "players" {
-                    let mut out = format!(
-                        "There are currently {} games and {} players:",
-                        self.games.len(),
-                        self.playing_users.len()
-                    );
-                    for (game_id, game) in &self.games {
-                        out.push_str(&format!(
-                            "\n#{}: <@{}>",
-                            game_id,
-                            game.players()
-                                .map(|p| &**p)
-                                .collect::<Vec<_>>()
-                                .join(">, <@")
-                        ));
-                    }
-                    if self.waiting.is_empty() {
-                        out.push_str("\nNo players waiting.");
+                        let _ = cli.sender().send_message(c, &out);
+                    } else if t == "help" {
+                        let out =
+                            "\
+                             Oh, so you're confused? I'm so sorry to hear that.\n\
+                             \n\
+                             On your turn, you can `play`, `discard`, or `clue`. \
+                             If you `play` or `discard`, you must also specify which card using \
+                             the card's position from the left-hand side, starting at one. \
+                             To `clue`, you give the player you are cluing (`@player`), \
+                             and the clue you want to give (e.g., `red`, `one`).\n\
+                             \n\
+                             To look around, you can use `hands`, `deck`, or `discards`. \
+                             `hands` will tell you what each player has and knows, `deck` will \
+                             show you the number of cards left, and `discards` will show \
+                             you the discard pile. If everything goes south, you can always use \
+                             `quit` to give up.\n\
+                             \n\
+                             If you want more information, try \
+                             https://github.com/jonhoo/hanabot.";
+                        let _ = cli.sender().send_message(c, &out);
                     } else {
-                        out.push_str(&format!(
-                            "\nWaiting: {}",
-                            self.waiting
-                                .iter()
-                                .map(|p| format!("<@{}>", p))
-                                .collect::<Vec<_>>()
-                                .join(", ")
-                        ));
-                    }
-                    let _ = cli.sender().send_message(c, &out);
-                } else if t == "help" {
-                    let out = "\
-                               Oh, so you're confused? I'm so sorry to hear that.\n\
-                               \n\
-                               On your turn, you can `play`, `discard`, or `clue`. \
-                               If you `play` or `discard`, you must also specify which card using \
-                               the card's position from the left-hand side, starting at one. \
-                               To `clue`, you give the player you are cluing (`@player`), \
-                               and the clue you want to give (e.g., `red`, `one`).\n\
-                               \n\
-                               To look around, you can use `hands`, `deck`, or `discards`. \
-                               `hands` will tell you what each player has and knows, `deck` will \
-                               show you the number of cards left, and `discards` will show \
-                               you the discard pile. If everything goes south, you can always use \
-                               `quit` to give up.\n\
-                               \n\
-                               If you want more information, try \
-                               https://github.com/jonhoo/hanabot.";
-                    let _ = cli.sender().send_message(c, &out);
-                } else {
-                    match self.playing_users.get(u) {
-                        Some(uc) if c == uc => {
-                            // known user made a move in DM
+                        match self.playing_users.get(u) {
+                            Some(uc) if c == uc => {
+                                // known user made a move in DM
+                            }
+                            Some(_) if c == &self.channel => {
+                                // known user made move in public -- fine...
+                            }
+                            Some(uc) => {
+                                // known user made a move in unknown channel?
+                                println!(
+                                    "user {} made move in {}, but messages are in {}",
+                                    u, c, uc
+                                );
+                                return;
+                            }
+                            None => {
+                                // unknown user made move that wasn't `join`
+                                return;
+                            }
                         }
-                        Some(_) if c == &self.channel => {
-                            // known user made move in public -- fine...
-                        }
-                        Some(uc) => {
-                            // known user made a move in unknown channel?
-                            println!("user {} made move in {}, but messages are in {}", u, c, uc);
-                            return;
-                        }
-                        None => {
-                            // unknown user made move that wasn't `join`
-                            return;
-                        }
-                    }
 
-                    let mut messages = MessageProxy::new(cli);
-                    self.handle_move(u, t, &mut messages);
-                    messages.flush(&self.playing_users);
+                        let mut messages = MessageProxy::new(cli);
+                        self.handle_move(u, t, &mut messages);
+                        messages.flush(&self.playing_users);
+                    }
                 }
-            },
+            }
             _ => {}
         }
     }
@@ -392,9 +404,11 @@ impl Default for Hanabi {
 impl Hanabi {
     pub fn save(&self) {
         match File::create("state.json") {
-            Ok(f) => if let Err(e) = serde_json::to_writer(BufWriter::new(f), self) {
-                eprintln!("Failed to save game state: {}", e);
-            },
+            Ok(f) => {
+                if let Err(e) = serde_json::to_writer(BufWriter::new(f), self) {
+                    eprintln!("Failed to save game state: {}", e);
+                }
+            }
             Err(e) => {
                 eprintln!("Failed to save game state: {}", e);
             }
@@ -677,7 +691,8 @@ impl Hanabi {
                     return;
                 }
 
-                match self.games
+                match self
+                    .games
                     .get_mut(&game_id)
                     .unwrap()
                     .play(card.unwrap() - 1)
@@ -707,7 +722,8 @@ impl Hanabi {
                     return;
                 }
 
-                match self.games
+                match self
+                    .games
                     .get_mut(&game_id)
                     .unwrap()
                     .discard(card.unwrap() - 1)
@@ -775,10 +791,13 @@ impl Hanabi {
         let mut players: Vec<_> = game.players().map(|p| format!("<@{}>", p)).collect();
         players.pop();
         let mut players = players.join(", ");
-        players.push_str(&game.players()
-            .last()
-            .map(|p| format!(", and <@{}>", p))
-            .unwrap());
+        players.push_str(
+            &game
+                .players()
+                .last()
+                .map(|p| format!(", and <@{}>", p))
+                .unwrap(),
+        );
 
         format!("Game with {}", players)
     }

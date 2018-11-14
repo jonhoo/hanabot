@@ -148,7 +148,6 @@ impl Card {
     }
 }
 
-
 #[derive(Serialize, Deserialize)]
 pub(super) struct Deck(usize, Vec<Card>);
 
@@ -187,12 +186,10 @@ impl Default for Deck {
         let mut cards: Vec<_> = super::COLOR_ORDER
             .iter()
             .flat_map(|&color| {
-                numbers.iter().map(move |&number| {
-                    Card {
-                        color,
-                        number,
-                        clues: Vec::new(),
-                    }
+                numbers.iter().map(move |&number| Card {
+                    color,
+                    number,
+                    clues: Vec::new(),
                 })
             })
             .collect();
@@ -221,7 +218,8 @@ impl Hand {
     }
 
     pub(super) fn clue(&mut self, player: usize, clue: Clue) -> Result<usize, ClueError> {
-        let matches = self.cards
+        let matches = self
+            .cards
             .iter()
             .filter(|card| match clue {
                 Clue::Color(ref c) => c == &card.color,
