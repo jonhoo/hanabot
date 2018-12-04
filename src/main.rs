@@ -656,15 +656,14 @@ impl Hanabi {
                 let player = player.trim_right_matches('>');
 
                 match self.games.get_mut(&game_id).unwrap().clue(player, clue) {
-                    Ok(_) => {
-                        self.progress_game(game_id, msgs);
-                    }
+                    Ok(_) => {}
                     Err(hanabi::ClueError::NoSuchPlayer) => {
                         msgs.send(
                             user,
                             "The player you specified does not exist. \
                              Remember to use Slack's @username tagging.",
                         );
+                        return;
                     }
                     Err(hanabi::ClueError::NoMatchingCards) => {
                         msgs.send(
@@ -672,12 +671,15 @@ impl Hanabi {
                             "The card you specified is not in your hand. \
                              Remember that card indexing starts at 1.",
                         );
+                        return;
                     }
                     Err(hanabi::ClueError::NotEnoughClues) => {
                         msgs.send(user, "There are no clue tokens left, so you cannot clue.");
+                        return;
                     }
                     Err(hanabi::ClueError::GameOver) => {}
                 }
+                self.progress_game(game_id, msgs);
             }
             Some("play") => {
                 let card = command.next().and_then(|card| card.parse::<usize>().ok());
