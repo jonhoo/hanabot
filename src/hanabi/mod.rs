@@ -3,8 +3,8 @@ use std::time::{Duration, SystemTime, SystemTimeError};
 
 mod components;
 use self::components::{Card, Deck, Hand};
-pub(crate) use self::components::{ClueError, DiscardError, PlayError};
 pub(crate) use self::components::{Clue, Color, Number};
+pub(crate) use self::components::{ClueError, DiscardError, PlayError};
 
 /// We want to ensure that we always print colors in the same order.
 const COLOR_ORDER: [Color; 5] = [
@@ -39,7 +39,6 @@ fn dur_mod(start: &mut SystemTime) -> String {
     *start = SystemTime::now();
     dur(t)
 }
-
 
 #[derive(Serialize, Deserialize)]
 struct Move {
@@ -193,25 +192,29 @@ impl Game {
 
             use std::collections::hash_map::Entry;
             let success = match self.played.entry(card.color) {
-                Entry::Vacant(e) => if card.number == Number::One {
-                    e.insert(Number::One);
-                    true
-                } else {
-                    false
-                },
-                Entry::Occupied(mut e) => if card.number == *e.get() + 1 {
-                    e.insert(card.number);
-                    if card.number == Number::Five {
-                        // completed a stack!
-                        // get a clue.
-                        if self.clues < 8 {
-                            self.clues += 1;
-                        }
+                Entry::Vacant(e) => {
+                    if card.number == Number::One {
+                        e.insert(Number::One);
+                        true
+                    } else {
+                        false
                     }
-                    true
-                } else {
-                    false
-                },
+                }
+                Entry::Occupied(mut e) => {
+                    if card.number == *e.get() + 1 {
+                        e.insert(card.number);
+                        if card.number == Number::Five {
+                            // completed a stack!
+                            // get a clue.
+                            if self.clues < 8 {
+                                self.clues += 1;
+                            }
+                        }
+                        true
+                    } else {
+                        false
+                    }
+                }
             };
 
             let drew = if self.last_turns.is_none() {
@@ -310,7 +313,8 @@ impl Game {
 
     /// Show `user` every other player's hand + what they know.
     pub(crate) fn show_hands(&self, user: &str, skip_self: bool, cli: &mut super::MessageProxy) {
-        let me = self.hands
+        let me = self
+            .hands
             .iter()
             .position(|hand| &hand.player == user)
             .unwrap();
@@ -383,8 +387,8 @@ impl Game {
             "-".repeat(width - left),
             " ".repeat(left),
             self.deck.len()
-        ).replace("- ", "> ");
-
+        )
+        .replace("- ", "> ");
 
         cli.send(user, &progress);
     }
@@ -457,7 +461,8 @@ impl Game {
     pub(crate) fn progress_game(&mut self, cli: &mut super::MessageProxy) -> bool {
         if !self.last_move.show_to(0).is_empty() {
             for (i, hand) in self.hands.iter().enumerate() {
-                let mut m = self.last_move
+                let mut m = self
+                    .last_move
                     .show_to(i)
                     .replace(&format!("<@{}>", hand.player), "you");
                 if m.starts_with("you") {
@@ -524,7 +529,8 @@ impl Game {
     fn discarded(&mut self, card: Card) {
         // insert into sorted discard list for that color
         let d = self.discard.entry(card.color).or_insert_with(Vec::new);
-        let pos = d.binary_search_by_key(&card.number.as_usize(), |c| c.number.as_usize())
+        let pos = d
+            .binary_search_by_key(&card.number.as_usize(), |c| c.number.as_usize())
             .unwrap_or_else(|e| e);
         d.insert(pos, card);
     }
