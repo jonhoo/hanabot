@@ -8,15 +8,16 @@ another.
 ## Installation
 
  0. Download and install [Rust](https://www.rust-lang.org/).
- 1. Create a new Slack App [here](https://api.slack.com/apps).
- 2. Go to "App Manifest" tab of the App's settings page, and paste in
-    what's in `slack-manifest.json`. Hit "Save Changes".
- 3. Go to the "App Home" tab, and under "Show Tabs", check the box that
+ 1. Create a new Slack App [here](https://api.slack.com/apps). When it
+    asks you how you want it to create the app, select "From Manifest",
+    and paste in the JSON from `slack-manifest.json`. Hit "Save
+    Changes".
+ 2. Go to the "App Home" tab, and under "Show Tabs", check the box that
     says "Allow users to send ..." so that users can DM the bot.
- 4. Go to the "Basic Information" tab, and generate an "App-Level
+ 3. Go to the "Basic Information" tab, and generate an "App-Level
     Token". Give it `connections:write` access so that it can be used
     for socket communication. Copy that token.
- 6. Next, open the "Install App" tab and hit "Install to <Your
+ 4. Next, open the "Install App" tab and hit "Install to <Your
     Workspace>". This will print out a "Bot User OAuth Token". Copy
     that token as well.
  5. Run the bot with
