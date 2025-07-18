@@ -1,21 +1,14 @@
-extern crate ctrlc;
-extern crate rand;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_json;
-extern crate slack;
-
+use eyre::Context;
+use hanabi::{Clue, Color, Game, Number};
 use rand::seq::SliceRandom;
-use rand::thread_rng;
-use slack::{Event, Message, RtmClient};
-use std::collections::{HashMap, VecDeque};
-use std::fs::File;
-use std::io::{BufReader, BufWriter};
-use std::sync::atomic::{AtomicBool, Ordering};
+use serde::{Deserialize, Serialize};
+use slack_morphism::prelude::*;
+use slack_morphism::{SlackApiToken, SlackApiTokenValue};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 mod hanabi;
-use hanabi::{Clue, Color, Game, Number};
 
 // Welcome to the Hanabi bot code.
 //
@@ -39,242 +32,225 @@ use hanabi::{Clue, Color, Game, Number};
 // messages. This mapping is never exposed to `hanabi::Game`; instead, we use `MessageProxy`, which
 // buffers up messages we want to send to each player, and then flushes them all to the appropriate
 // channels when the turn has finished.
-fn main() {
-    let api_key = if let Ok(key) = std::env::var("API_KEY") {
-        key
+#[tokio::main]
+async fn main() -> eyre::Result<()> {
+    let app_token_value: SlackApiTokenValue = std::env::var("SLACK_APP_TOKEN")
+        .expect("SLACK_APP_TOKEN was not set")
+        .into();
+    let app_token: SlackApiToken = SlackApiToken::new(app_token_value);
+
+    let api_token_value: SlackApiTokenValue = std::env::var("SLACK_API_TOKEN")
+        .expect("SLACK_API_TOKEN was not set")
+        .into();
+    let api_token: SlackApiToken = SlackApiToken::new(api_token_value);
+
+    let hanabi = if tokio::fs::try_exists("state.json")
+        .await
+        .context("check for state.json")?
+    {
+        let state_json = tokio::fs::read("state.json")
+            .await
+            .context("read state.json")?;
+        serde_json::from_reader(&*state_json).context("parse state.json")?
     } else {
-        eprintln!("No API_KEY provided.");
-        std::process::exit(1);
+        Hanabi::default()
     };
+    let state = Arc::new(State {
+        api_token,
+        hanabi: Mutex::new(hanabi),
+    });
 
-    let running = Arc::new(AtomicBool::new(true));
-    let r = running.clone();
-    ctrlc::set_handler(move || {
-        r.store(false, Ordering::SeqCst);
-    })
-    .expect("Error setting Ctrl-C handler");
+    let socket_mode_callbacks =
+        SlackSocketModeListenerCallbacks::new().with_push_events(on_push_event);
 
-    let handler: Hanabi = File::open("state.json")
-        .map_err(|_| ())
-        .and_then(|f| {
-            serde_json::from_reader(BufReader::new(f)).map_err(|e| {
-                eprintln!("Found past state, but failed to parse it: {}", e);
-                ()
-            })
-        })
-        .unwrap_or_default();
+    let client = Arc::new(SlackClient::new(SlackClientHyperConnector::new()?));
+    let listener_environment = Arc::new(
+        SlackClientEventsListenerEnvironment::new(client.clone())
+            .with_error_handler(on_error)
+            .with_user_state(Arc::clone(&state)),
+    );
 
-    let mut r = Runner {
-        state: handler,
-        running: running.clone(),
-    };
+    let socket_mode_listener = SlackClientSocketModeListener::new(
+        &SlackClientSocketModeConfig::new(),
+        listener_environment.clone(),
+        socket_mode_callbacks,
+    );
 
-    while let Err(e) = RtmClient::login_and_run(&api_key, &mut r) {
-        if !running.load(Ordering::SeqCst) {
-            // most likely, we'll get the error:
-            // slack::Error::WebSocket(tungstenite::error::Error::Io(e))
-            // where e.kind() == ErrorKind::Interrupted
-            // but that's annoying to match against, so we always print it:
-            eprintln!("Error when exiting: {}", e);
-            break;
-        }
+    // Register an app token to listen for events,
+    socket_mode_listener
+        .listen_for(&app_token)
+        .await
+        .context("listen in socket mode")?;
 
-        eprintln!("Error while running: {}", e);
-    }
+    // Start WS connections calling Slack API to get WS url for the token,
+    // and wait for Ctrl-C to shutdown
+    socket_mode_listener.serve().await;
 
     // we're exiting; serialize state so we can later resume
-    r.state.save();
-}
-
-struct Runner {
-    state: Hanabi,
-    running: Arc<AtomicBool>,
-}
-
-impl slack::EventHandler for Runner {
-    fn on_connect(&mut self, cli: &RtmClient) {
-        if self.running.load(Ordering::SeqCst) {
-            self.state.on_connect(cli)
-        }
-    }
-
-    fn on_event(&mut self, cli: &RtmClient, event: Event) {
-        self.state.on_event(cli, event);
-
-        if !self.running.load(Ordering::SeqCst) {
-            // we're unfortunately rarely get here because the Ctrl-C will cause the outer run to
-            // return an error...
-            let _ = cli.sender().send_message(
-                &self.state.channel,
-                "Hanabi bot is going to be unavailable for a little bit :slightly_frowning_face:",
-            );
-            let _ = cli.sender().shutdown();
-        }
-    }
-
-    fn on_close(&mut self, cli: &RtmClient) {
-        self.state.on_close(cli);
+    {
+        let hanabi = state.hanabi.lock().await;
+        hanabi.save().await
     }
 }
 
-impl slack::EventHandler for Hanabi {
-    fn on_connect(&mut self, cli: &RtmClient) {
-        // join the #hanabi channel
-        let channel = cli
-            .start_response()
-            .channels
-            .as_ref()
-            .and_then(|channels| {
-                channels.iter().find(|chan| match chan.name {
-                    None => false,
-                    Some(ref name) => name == "hanabi",
-                })
-            })
-            .and_then(|chan| chan.id.as_ref());
-        let group = cli
-            .start_response()
-            .groups
-            .as_ref()
-            .and_then(|groups| {
-                groups.iter().find(|group| match group.name {
-                    None => false,
-                    Some(ref name) => name == "hanabi",
-                })
-            })
-            .and_then(|group| group.id.as_ref());
+struct State {
+    api_token: SlackApiToken,
+    hanabi: Mutex<Hanabi>,
+}
 
-        // we want to know our own id, so we know when we're mentioned by name
-        self.me = cli
-            .start_response()
-            .slf
-            .as_ref()
-            .and_then(|u| u.id.clone())
-            .unwrap();
+fn on_error(
+    err: Box<dyn std::error::Error + Send + Sync>,
+    _client: Arc<SlackHyperClient>,
+    _states: SlackClientEventsUserState,
+) -> http::StatusCode {
+    eprintln!("{err:?}");
 
-        match channel.or(group) {
-            None => panic!("#hanabi not found"),
-            Some(channel) => {
-                println!("joined channel {}", channel);
-                if self.ngames == 0 && self.waiting.is_empty() {
-                    // we must be starting for the first time
-                    let _ = cli.sender().send_message(
-                        &channel,
-                        "Hanabi bot is now available! :tada:\n\
-                         Send me the message 'join' to join a game.",
-                    );
-                }
-                self.channel = channel.clone();
-            }
-        }
+    // This return value should be OK if we want to return successful ack
+    // to the Slack server using Web-sockets
+    // https://api.slack.com/apis/connections/socket-implement#acknowledge
+    // so that Slack knows whether to retry
+    http::StatusCode::OK
+}
+
+// TODO
+// "Hanabi bot is going to be unavailable for a little bit :slightly_frowning_face:",
+
+// TODO
+// "Hanabi bot is now available! :tada:\n\
+//  Send me the message 'join' to join a game.",
+
+async fn on_push_event(
+    event: SlackPushEventCallback,
+    client: Arc<SlackHyperClient>,
+    states: SlackClientEventsUserState,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    dbg!(&event);
+    let SlackEventCallbackBody::Message(m) = event.event else {
+        return Ok(());
+    };
+
+    if !m
+        .subtype
+        .is_none_or(|ct| ct == SlackMessageEventType::MeMessage)
+    {
+        return Ok(());
     }
 
-    fn on_event(&mut self, cli: &RtmClient, event: Event) {
-        //println!("on_event(event: {:?})", event);
-        match event {
-            Event::Message(m) => {
-                if let Message::Standard(m) = *m {
-                    if m.user.is_none() || m.text.is_none() || m.channel.is_none() {
-                        return;
-                    }
+    let Some(u) = m.sender.user else {
+        return Ok(());
+    };
+    let Some(t) = m.content.as_ref().and_then(|v| v.text.as_ref()) else {
+        return Ok(());
+    };
+    let Some(c) = m.origin.channel else {
+        return Ok(());
+    };
+    if !m.origin.channel_type.is_some_and(|ct| ct.0 == "im") {
+        return Ok(());
+    }
 
-                    let u = m.user.as_ref().unwrap();
-                    let t = m.text.as_ref().unwrap();
-                    let c = m.channel.as_ref().unwrap();
+    let states = states.read().await;
+    let state = states
+        .get_user_state::<Arc<State>>()
+        .expect("we always use hanabi as user state");
 
-                    let prefix = format!("<@{}> ", self.me);
+    let mut hanabi = state.hanabi.lock().await;
+    let cli = client.open_session(&state.api_token);
 
-                    // first and foremost, if this message isn't for us, ignore it
-                    if c == &self.channel && !t.starts_with(&prefix) {
-                        if t.to_lowercase() == "join" {
-                            // some poor user tried to join -- help them out
-                            let _ = cli
-                                .sender()
-                                .send_message(c, &format!("<@{}> please dm me instead", u));
-                        }
-                        return;
-                    }
-
-                    let t = t.trim_left_matches(&prefix);
-                    if t.to_lowercase() == "join" {
-                        if c == &self.channel {
-                            // we need to know the DM channel ID, so force the user to DM us
-                            let _ = cli
-                                .sender()
-                                .send_message(c, &format!("<@{}> please dm me instead", u));
-                        } else if self.playing_users.insert(u.clone(), c.clone()).is_none() {
-                            let _ = cli.sender().send_message(
-                                c,
-                                "\
+    match &*t.to_lowercase() {
+        "join" => {
+            if hanabi.playing_users.insert(u.clone()) {
+                cli.chat_post_message(&SlackApiChatPostMessageRequest::new(
+                    c,
+                    SlackMessageContent::new().with_text(String::from(
+                        "\
                                  Welcome! \
                                  I'll get you started with a game \
                                  as soon as there are some other \
                                  players available.",
-                            );
-                            println!("user {} joined game with channel {}", u, c);
+                    )),
+                ))
+                .await
+                .context("notify user of join")?;
+                println!("user {u} joined game");
 
-                            self.waiting.push_back(u.clone());
+                hanabi.waiting.push_back(u.clone());
 
-                            let mut messages = MessageProxy::new(cli);
-                            self.on_player_change(&mut messages);
-                            messages.flush(&self.playing_users);
-                        }
-                    } else if t.to_lowercase() == "leave" {
-                        if self.playing_users.contains_key(u) {
-                            // the user wants to leave
-                            let mut messages = MessageProxy::new(cli);
+                let mut messages = MessageProxy::new(cli);
+                hanabi.on_player_change(&mut messages);
+                messages.flush().await.context("handle player join")?;
+            } else {
+                let _ = cli
+                    .chat_post_message(&SlackApiChatPostMessageRequest::new(
+                        c,
+                        SlackMessageContent::new().with_text(String::from(
+                            "You're already playing, but I appreciate your enthusiasm.",
+                        )),
+                    ))
+                    .await;
+            }
+        }
+        "leave" => {
+            if hanabi.playing_users.contains(&u) {
+                // the user wants to leave
+                let mut messages = MessageProxy::new(cli);
 
-                            // first make them quit.
-                            if self.in_game.contains_key(u) {
-                                self.handle_move(u, "quit", &mut messages);
-                            }
+                // first make them quit.
+                if hanabi.in_game.contains_key(&u) {
+                    hanabi.handle_move(&u, "quit", &mut messages).await;
+                }
 
-                            // then make them not wait anymore.
-                            if let Some(i) = self.waiting.iter().position(|p| p == u) {
-                                println!("user {} left", u);
-                                self.waiting.remove(i);
-                            } else {
-                                println!("user {} wanted to leave, but not waiting?", u);
-                            }
+                // then make them not wait anymore.
+                if let Some(i) = hanabi.waiting.iter().position(|p| p == &u) {
+                    println!("user {u} left");
+                    hanabi.waiting.remove(i);
+                } else {
+                    println!("user {u} wanted to leave, but not waiting?");
+                }
 
-                            // let them know we removed them
-                            messages.send(u, "I have stricken you from all my lists.");
-                            messages.flush(&self.playing_users);
+                // let them know we removed them
+                messages.send(&u.0, "I have stricken you from all my lists.");
+                messages.flush().await.context("handle player departure")?;
 
-                            // then actually remove
-                            self.playing_users.remove(u);
-                        }
-                    } else if t.to_lowercase() == "players" {
-                        let mut out = format!(
-                            "There are currently {} games and {} players:",
-                            self.games.len(),
-                            self.playing_users.len()
-                        );
-                        for (game_id, game) in &self.games {
-                            out.push_str(&format!(
-                                "\n#{}: <@{}>",
-                                game_id,
-                                game.players()
-                                    .map(|p| &**p)
-                                    .collect::<Vec<_>>()
-                                    .join(">, <@")
-                            ));
-                        }
-                        if self.waiting.is_empty() {
-                            out.push_str("\nNo players waiting.");
-                        } else {
-                            out.push_str(&format!(
-                                "\nWaiting: {}",
-                                self.waiting
-                                    .iter()
-                                    .map(|p| format!("<@{}>", p))
-                                    .collect::<Vec<_>>()
-                                    .join(", ")
-                            ));
-                        }
-                        let _ = cli.sender().send_message(c, &out);
-                    } else if t == "help" {
-                        let out =
-                            "\
+                // then actually remove
+                hanabi.playing_users.remove(&u);
+            }
+        }
+        "players" => {
+            let mut out = format!(
+                "There are currently {} games and {} players:",
+                hanabi.games.len(),
+                hanabi.playing_users.len()
+            );
+            for (game_id, game) in &hanabi.games {
+                out.push_str(&format!(
+                    "\n#{}: <@{}>",
+                    game_id,
+                    game.players().collect::<Vec<_>>().join(">, <@")
+                ));
+            }
+            if hanabi.waiting.is_empty() {
+                out.push_str("\nNo players waiting.");
+            } else {
+                out.push_str(&format!(
+                    "\nWaiting: {}",
+                    hanabi
+                        .waiting
+                        .iter()
+                        .map(|p| format!("<@{p}>"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+            }
+            cli.chat_post_message(&SlackApiChatPostMessageRequest::new(
+                c,
+                SlackMessageContent::new().with_text(out),
+            ))
+            .await
+            .context("list out players and games")?;
+        }
+        "help" => {
+            let out = "\
                              Oh, so you're confused? I'm so sorry to hear that.\n\
                              \n\
                              On your turn, you can `play`, `discard`, or `clue`. \
@@ -291,40 +267,30 @@ impl slack::EventHandler for Hanabi {
                              \n\
                              If you want more information, try \
                              https://github.com/jonhoo/hanabot.";
-                        let _ = cli.sender().send_message(c, &out);
-                    } else {
-                        match self.playing_users.get(u) {
-                            Some(uc) if c == uc => {
-                                // known user made a move in DM
-                            }
-                            Some(_) if c == &self.channel => {
-                                // known user made move in public -- fine...
-                            }
-                            Some(uc) => {
-                                // known user made a move in unknown channel?
-                                println!(
-                                    "user {} made move in {}, but messages are in {}",
-                                    u, c, uc
-                                );
-                                return;
-                            }
-                            None => {
-                                // unknown user made move that wasn't `join`
-                                return;
-                            }
-                        }
-
-                        let mut messages = MessageProxy::new(cli);
-                        self.handle_move(u, t, &mut messages);
-                        messages.flush(&self.playing_users);
-                    }
-                }
+            dbg!(
+                cli.chat_post_message(&SlackApiChatPostMessageRequest::new(
+                    SlackChannelId(u.to_string()),
+                    SlackMessageContent::new().with_text(String::from(out)),
+                ))
+                .await
+            )
+            .context("send help message")?;
+        }
+        _ => {
+            if hanabi.playing_users.contains(&u) {
+                // known user made a move
+            } else {
+                // unknown user made move that wasn't `join`
+                return Ok(());
             }
-            _ => {}
+
+            let mut messages = MessageProxy::new(cli);
+            hanabi.handle_move(&u, t, &mut messages).await;
+            messages.flush().await.context("handle game play message")?;
         }
     }
 
-    fn on_close(&mut self, _: &RtmClient) {}
+    Ok(())
 }
 
 /// `MessageProxy` buffers messages that are to be sent to a user in a given turn, and flushes them
@@ -332,32 +298,38 @@ impl slack::EventHandler for Hanabi {
 /// of notifications to each user, and hides Slack API details such as the distinction between user
 /// ids and channel ids from `hanabi::Game`.
 pub(crate) struct MessageProxy<'a> {
-    cli: &'a RtmClient,
+    cli: SlackClientSession<'a, SlackClientHyperHttpsConnector>,
     msgs: HashMap<String, Vec<String>>,
 }
 
 impl<'a> MessageProxy<'a> {
-    pub fn new(cli: &'a RtmClient) -> Self {
+    pub fn new(cli: SlackClientSession<'a, SlackClientHyperHttpsConnector>) -> Self {
         MessageProxy {
-            cli: cli,
+            cli,
             msgs: Default::default(),
         }
     }
 
     pub fn send(&mut self, user: &str, text: &str) {
         self.msgs
-            .entry(user.to_owned())
-            .or_insert_with(Vec::new)
+            .entry(user.to_string())
+            .or_default()
             .push(text.to_owned());
     }
 
-    pub fn flush(&mut self, user_to_channel: &HashMap<String, String>) {
+    pub async fn flush(&mut self) -> eyre::Result<()> {
         for (user, msgs) in self.msgs.drain() {
-            let _ = self.cli.sender().send_message(
-                &user_to_channel.get(&user).unwrap_or(&user),
-                &msgs.join("\n"),
-            );
+            let _ = self
+                .cli
+                .chat_post_message(&SlackApiChatPostMessageRequest::new(
+                    SlackChannelId(user.clone()),
+                    SlackMessageContent::new().with_text(msgs.join("\n")),
+                ))
+                .await
+                .with_context(|| format!("send to {user}"))?;
         }
+
+        Ok(())
     }
 }
 
@@ -369,11 +341,11 @@ struct Hanabi {
     /// main game channel id
     channel: String,
 
-    /// users who have joined, and their corresponding dm channel id
-    playing_users: HashMap<String, String>,
+    /// users who have joined
+    playing_users: HashSet<SlackUserId>,
 
     /// users waiting for a game
-    waiting: VecDeque<String>,
+    waiting: VecDeque<SlackUserId>,
 
     /// total number of games
     ngames: usize,
@@ -382,7 +354,7 @@ struct Hanabi {
     games: HashMap<usize, hanabi::Game>,
 
     /// map from each user to the game they are in
-    in_game: HashMap<String, usize>,
+    in_game: HashMap<SlackUserId, usize>,
 }
 
 impl Default for Hanabi {
@@ -402,17 +374,12 @@ impl Default for Hanabi {
 }
 
 impl Hanabi {
-    pub fn save(&self) {
-        match File::create("state.json") {
-            Ok(f) => {
-                if let Err(e) = serde_json::to_writer(BufWriter::new(f), self) {
-                    eprintln!("Failed to save game state: {}", e);
-                }
-            }
-            Err(e) => {
-                eprintln!("Failed to save game state: {}", e);
-            }
-        }
+    pub async fn save(&self) -> eyre::Result<()> {
+        let state = serde_json::to_vec(self).context("serialize Hanabi state")?;
+        tokio::fs::write("state.json", &state)
+            .await
+            .context("write out Hanabi state to state.json")?;
+        Ok(())
     }
 
     /// Determine whether we can start a new game, and notify players if they can force a new game
@@ -435,7 +402,7 @@ impl Hanabi {
                     self.waiting.len() - 1
                 );
                 for p in &self.waiting {
-                    msgs.send(p, &message);
+                    msgs.send(&p.0, &message);
                 }
                 return;
             }
@@ -447,7 +414,12 @@ impl Hanabi {
     /// If `user` is not `None`, then `user` tried to force a game to start despite there not being
     /// a full five waiting players. If this is the case, `user` should certainly be included in
     /// the new game (assuming there are at least two free players).
-    fn start_game(&mut self, user: Option<&str>, users: Option<usize>, msgs: &mut MessageProxy) {
+    async fn start_game(
+        &mut self,
+        user: Option<&SlackUserId>,
+        users: Option<usize>,
+        msgs: &mut MessageProxy<'_>,
+    ) {
         let mut players = Vec::new();
 
         if let Some(u) = user {
@@ -476,7 +448,7 @@ impl Hanabi {
             // no game -- not enough players
             if let Some(u) = user {
                 msgs.send(
-                    u,
+                    &u.0,
                     "Unfortunately, there aren't enough players to start a game yet.",
                 );
             }
@@ -484,7 +456,7 @@ impl Hanabi {
             return;
         }
 
-        let game = Game::new(&players[..]);
+        let game = Game::new(players.iter().map(|slack_user| &*slack_user.0));
         let game_id = self.ngames;
         self.ngames += 1;
         self.games.insert(game_id, game);
@@ -507,18 +479,18 @@ impl Hanabi {
                 players.len() - 1,
                 others.join(", ")
             );
-            msgs.send(p, &message);
+            msgs.send(&p.0, &message);
         }
         for p in players {
             let already_in = self.in_game.insert(p, game_id);
             assert_eq!(already_in, None);
         }
 
-        self.progress_game(game_id, msgs);
+        self.progress_game(game_id, msgs).await;
     }
 
     /// Handle a turn command by the given `user`.
-    fn handle_move(&mut self, user: &str, text: &str, msgs: &mut MessageProxy) {
+    async fn handle_move(&mut self, user: &SlackUserId, text: &str, msgs: &mut MessageProxy<'_>) {
         let mut command = text.split_whitespace().peekable();
 
         if command
@@ -531,19 +503,19 @@ impl Hanabi {
                 return;
             }
 
-            command.next().is_some();
+            let _ = command.next().is_some();
             let nplayers = command.peek().and_then(|n| n.parse().ok());
 
             if command.next().is_some() && nplayers.is_none() {
                 msgs.send(
-                    user,
+                    &user.0,
                     "You can only give an integral number of players to start a game with",
                 );
                 return;
             }
 
             // the user wants to start the game even though there aren't enough players
-            self.start_game(Some(user), nplayers, msgs);
+            self.start_game(Some(user), nplayers, msgs).await;
             return;
         }
 
@@ -551,7 +523,7 @@ impl Hanabi {
             *game_id
         } else {
             msgs.send(
-                user,
+                &user.0,
                 "You're not currently in any games, and thus can't make a move.",
             );
             return;
@@ -568,9 +540,9 @@ impl Hanabi {
         if let Some(cmd) = cmd {
             if cmd == "play" || cmd == "clue" || cmd == "discard" {
                 let current = self.games[&game_id].current_player();
-                if current != user {
+                if current != user.0 {
                     msgs.send(
-                        user,
+                        &user.0,
                         &format!("It's not your turn yet, it's <@{}>'s.", current),
                     );
                     return;
@@ -594,9 +566,9 @@ impl Hanabi {
             }
             Some("ping") => {
                 let current = self.games[&game_id].current_player();
-                if current == user {
+                if current == user.0 {
                     msgs.send(
-                        user,
+                        &user.0,
                         "It's your turn... No need to bother the other players.",
                     );
                 } else {
@@ -604,24 +576,24 @@ impl Hanabi {
                         current,
                         &format!("<@{}> pinged you -- it's your turn.", user),
                     );
-                    msgs.send(user, &format!("I've pinged <@{}>.", current));
+                    msgs.send(&user.0, &format!("I've pinged <@{}>.", current));
                 }
             }
             Some("discards") => {
-                self.games[&game_id].show_discards(user, msgs);
+                self.games[&game_id].show_discards(&user.0, msgs);
             }
             Some("hands") => {
-                self.games[&game_id].show_hands(user, false, msgs);
+                self.games[&game_id].show_hands(&user.0, false, msgs);
             }
             Some("deck") => {
-                self.games[&game_id].show_deck(user, msgs);
+                self.games[&game_id].show_deck(&user.0, msgs);
             }
             Some("clue") => {
                 let player = command.next();
                 let specifier = command.next();
                 if player.is_none() || specifier.is_none() || command.next().is_some() {
                     msgs.send(
-                        user,
+                        &user.0,
                         "I don't have a clue what you mean. \
                          To clue, you give a player (using @playername), \
                          a card specifier (e.g., \"red\" or \"one\"), \
@@ -645,21 +617,21 @@ impl Hanabi {
                     "five" => Clue::Number(Number::Five),
                     s => {
                         msgs.send(
-                            user,
+                            &user.0,
                             &format!("You're making no sense. A card can't be {}...", s),
                         );
                         return;
                     }
                 };
 
-                let player = player.trim_left_matches("<@");
-                let player = player.trim_right_matches('>');
+                let player = player.trim_start_matches("<@");
+                let player = player.trim_end_matches('>');
 
                 match self.games.get_mut(&game_id).unwrap().clue(player, clue) {
                     Ok(_) => {}
                     Err(hanabi::ClueError::NoSuchPlayer) => {
                         msgs.send(
-                            user,
+                            &user.0,
                             "The player you specified does not exist. \
                              Remember to use Slack's @username tagging.",
                         );
@@ -667,25 +639,28 @@ impl Hanabi {
                     }
                     Err(hanabi::ClueError::NoMatchingCards) => {
                         msgs.send(
-                            user,
+                            &user.0,
                             "The card you specified is not in your hand. \
                              Remember that card indexing starts at 1.",
                         );
                         return;
                     }
                     Err(hanabi::ClueError::NotEnoughClues) => {
-                        msgs.send(user, "There are no clue tokens left, so you cannot clue.");
+                        msgs.send(
+                            &user.0,
+                            "There are no clue tokens left, so you cannot clue.",
+                        );
                         return;
                     }
                     Err(hanabi::ClueError::GameOver) => {}
                 }
-                self.progress_game(game_id, msgs);
+                self.progress_game(game_id, msgs).await;
             }
             Some("play") => {
                 let card = command.next().and_then(|card| card.parse::<usize>().ok());
                 if card.is_none() || card == Some(0) || command.next().is_some() {
                     msgs.send(
-                        user,
+                        &user.0,
                         "I think you played incorrectly there. \
                          To play, you just specify which card you'd like to play by specifying \
                          its index from the left side of your hand (starting at 1).",
@@ -702,7 +677,7 @@ impl Hanabi {
                     Ok(()) => {}
                     Err(hanabi::PlayError::NoSuchCard) => {
                         msgs.send(
-                            user,
+                            &user.0,
                             "The card you specified is not in your hand. \
                              Remember that card indexing starts at 1.",
                         );
@@ -710,13 +685,13 @@ impl Hanabi {
                     }
                     Err(hanabi::PlayError::GameOver) => {}
                 }
-                self.progress_game(game_id, msgs);
+                self.progress_game(game_id, msgs).await;
             }
             Some("discard") => {
                 let card = command.next().and_then(|card| card.parse::<usize>().ok());
                 if card.is_none() || card == Some(0) || command.next().is_some() {
                     msgs.send(
-                        user,
+                        &user.0,
                         "I'm going to discard that move. \
                          To discard, you must specify which card you'd like to play by specifying \
                          its index from the left side of your hand (starting at 1).",
@@ -733,7 +708,7 @@ impl Hanabi {
                     Ok(()) => {}
                     Err(hanabi::DiscardError::NoSuchCard) => {
                         msgs.send(
-                            user,
+                            &user.0,
                             "The card you specified is not in your hand. \
                              Remember that card indexing starts at 1.",
                         );
@@ -741,18 +716,18 @@ impl Hanabi {
                     }
                     Err(hanabi::DiscardError::MaxClues) => {
                         msgs.send(
-                            user,
+                            &user.0,
                             "All 8 clue tokens are available, so discard is disallowed.",
                         );
                         return;
                     }
                     Err(hanabi::DiscardError::GameOver) => {}
                 }
-                self.progress_game(game_id, msgs);
+                self.progress_game(game_id, msgs).await;
             }
             Some(cmd) => {
                 msgs.send(
-                    user,
+                    &user.0,
                     &format!(
                         "What do you mean \"{}\"?! You must either clue, play, or discard.",
                         cmd
@@ -760,7 +735,7 @@ impl Hanabi {
                 );
             }
             None => {
-                msgs.send(user, "You must either clue, play, or discard.");
+                msgs.send(&user.0, "You must either clue, play, or discard.");
             }
         }
     }
@@ -769,23 +744,33 @@ impl Hanabi {
     ///
     /// This also detects if the game has ended, and if it has, returns the players of that game to
     /// the pool of waiting players.
-    fn progress_game(&mut self, game_id: usize, msgs: &mut MessageProxy) {
-        if self.games.get_mut(&game_id).unwrap().progress_game(msgs) {
-            msgs.flush(&self.playing_users);
+    async fn progress_game(
+        &mut self,
+        game_id: usize,
+        msgs: &mut MessageProxy<'_>,
+    ) -> eyre::Result<()> {
+        let game = self.games.get_mut(&game_id).unwrap();
+        if game.progress_game(msgs) {
+            msgs.flush()
+                .await
+                .context("send out game progress messages")?;
             self.end_game(game_id, msgs);
-        } else if self.games.get_mut(&game_id).unwrap().became_unwinnable() {
+        } else if game.became_unwinnable() {
             // last move caused game to be unwinnable -- call someone out
-            msgs.send(
-                &self.channel,
-                &format!(
-                    "{} became unwinnable after {}",
-                    self.desc_game(game_id),
-                    self.games[&game_id].last_move()
-                ),
-            );
+            let game = self.games.get(&game_id).unwrap();
+            for p in game.players() {
+                msgs.send(
+                    p,
+                    &format!(
+                        "{} became unwinnable after {}",
+                        self.desc_game(game_id),
+                        game.last_move()
+                    ),
+                );
+            }
         }
 
-        self.save();
+        self.save().await
     }
 
     fn desc_game(&self, game_id: usize) -> String {
@@ -811,22 +796,24 @@ impl Hanabi {
         let game = self.games.remove(&game_id).unwrap();
 
         println!("game #{} ended with score {}/25", game_id, game.score());
-        msgs.send(
-            &self.channel,
-            &format!(
-                "{} ended with a score of {}/25 {}",
-                desc,
-                game.score(),
-                game.score_smiley()
-            ),
-        );
+        for p in game.players() {
+            msgs.send(
+                p,
+                &format!(
+                    "{} ended with a score of {}/25 {}",
+                    desc,
+                    game.score(),
+                    game.score_smiley()
+                ),
+            );
+        }
 
-        let mut players: Vec<_> = game.players().cloned().collect();
+        let mut players: Vec<_> = game.players().map(|s| SlackUserId(s.to_string())).collect();
 
         // shuffle players so we don't add them back to the queue in the same order they were in
         // when we started the game. if we don't do this, games would always have basically the
         // same player order (though `start` player does go first).
-        players.shuffle(&mut thread_rng());
+        players.shuffle(&mut rand::rng());
         for player in players {
             self.in_game.remove(&player);
             self.waiting.push_back(player);

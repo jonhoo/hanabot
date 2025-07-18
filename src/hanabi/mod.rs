@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime, SystemTimeError};
 
@@ -85,7 +86,7 @@ pub(crate) struct Game {
 
 impl Game {
     /// Start a new game for the given players with a freshly shuffled deck.
-    pub(crate) fn new(players: &[String]) -> Self {
+    pub(crate) fn new<'a>(players: impl IntoIterator<Item = &'a str>) -> Self {
         let mut deck = Deck::default();
         let mut hands: Vec<_> = players
             .into_iter()
@@ -129,8 +130,8 @@ impl Game {
     }
 
     /// Enumerate the usernames of the players in this game.
-    pub(crate) fn players<'a>(&'a self) -> Box<Iterator<Item = &'a String> + 'a> {
-        Box::new(self.hands.iter().map(|h| &h.player)) as Box<_>
+    pub(crate) fn players<'a>(&'a self) -> impl Iterator<Item = &'a str> + use<'a> {
+        self.hands.iter().map(|h| &*h.player)
     }
 
     /// Get the username of the player whose turn it is.

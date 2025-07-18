@@ -1,0 +1,35 @@
+{
+    "display_information": {
+        "name": "Hanabot",
+        "description": "Play Hanabi with coworkers",
+        "background_color": "#f72d9f",
+        "long_description": "To start, send a direct message with the word \"join\" to the bot. You can also send it \"help\" to get additional instructions.\r\n\r\nPowered by https://github.com/jonhoo/hanabot\r\n\r\nAlso, this fields needs to be 175+ characters, so here you go, that should do it."
+    },
+    "features": {
+        "bot_user": {
+            "display_name": "Hanabot",
+            "always_online": true
+        }
+    },
+    "oauth_config": {
+        "scopes": {
+            "bot": [
+                "im:history",
+                "chat:write"
+            ]
+        }
+    },
+    "settings": {
+        "event_subscriptions": {
+            "bot_events": [
+                "message.im"
+            ]
+        },
+        "interactivity": {
+            "is_enabled": true
+        },
+        "org_deploy_enabled": false,
+        "socket_mode_enabled": true,
+        "token_rotation_enabled": false
+    }
+}

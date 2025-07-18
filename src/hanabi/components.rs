@@ -1,5 +1,4 @@
 use rand::seq::SliceRandom;
-use rand::thread_rng;
 use std::collections::LinkedList;
 
 /// An error that occurred while giving a clue.
@@ -78,6 +77,7 @@ impl Number {
     }
 }
 
+use serde::{Deserialize, Serialize};
 use std::ops::Add;
 impl Add<usize> for Number {
     type Output = Number;
@@ -194,7 +194,7 @@ impl Default for Deck {
             })
             .collect();
 
-        cards.shuffle(&mut thread_rng());
+        cards.shuffle(&mut rand::rng());
         Deck(cards.len(), cards)
     }
 }

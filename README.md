@@ -8,17 +8,25 @@ another.
 ## Installation
 
  0. Download and install [Rust](https://www.rust-lang.org/).
- 1. Create a new bot user [here](https://my.slack.com/services/new/bot).
- 2. Note down the bot user's *API Token*.
- 3. Invite the bot user to a channel called `#hanabi` (it may be
-    private).
- 4. Run the bot with
-    
+ 1. Create a new Slack App [here](https://api.slack.com/apps).
+ 2. Go to "App Manifest" tab of the App's settings page, and paste in
+    what's in `slack-manifest.json`. Hit "Save Changes".
+ 3. Go to the "App Home" tab, and under "Show Tabs", check the box that
+    says "Allow users to send ..." so that users can DM the bot.
+ 4. Go to the "Basic Information" tab, and generate an "App-Level
+    Token". Give it `connections:write` access so that it can be used
+    for socket communication. Copy that token.
+ 6. Next, open the "Install App" tab and hit "Install to <Your
+    Workspace>". This will print out a "Bot User OAuth Token". Copy
+    that token as well.
+ 5. Run the bot with
+
     ```console
-    $ env "API_KEY=XXX" cargo run
+    $ env "SLACK_APP_TOKEN=XXX" "SLACK_API_TOKEN=YYY" cargo run
     ```
 
-    where `XXX` is the API token from step two.
+    where `XXX` is the "App-Level Token" and `YYY` is the "Bot User
+    OAuth Token".
 
 At this point, the bot should make an announcement in `#hanabi` that
 players can join.
