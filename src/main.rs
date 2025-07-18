@@ -124,7 +124,6 @@ async fn on_push_event(
     client: Arc<SlackHyperClient>,
     states: SlackClientEventsUserState,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    dbg!(&event);
     let SlackEventCallbackBody::Message(m) = event.event else {
         return Ok(());
     };
@@ -250,30 +249,41 @@ async fn on_push_event(
             .context("list out players and games")?;
         }
         "help" => {
-            let out = "\
-                             Oh, so you're confused? I'm so sorry to hear that.\n\
-                             \n\
-                             On your turn, you can `play`, `discard`, or `clue`. \
-                             If you `play` or `discard`, you must also specify which card using \
-                             the card's position from the left-hand side, starting at one. \
-                             To `clue`, you give the player you are cluing (`@player`), \
-                             and the clue you want to give (e.g., `red`, `one`).\n\
-                             \n\
-                             To look around, you can use `hands`, `deck`, or `discards`. \
-                             `hands` will tell you what each player has and knows, `deck` will \
-                             show you the number of cards left, and `discards` will show \
-                             you the discard pile. If everything goes south, you can always use \
-                             `quit` to give up.\n\
-                             \n\
-                             If you want more information, try \
-                             https://github.com/jonhoo/hanabot.";
-            dbg!(
-                cli.chat_post_message(&SlackApiChatPostMessageRequest::new(
-                    SlackChannelId(u.to_string()),
-                    SlackMessageContent::new().with_text(String::from(out)),
-                ))
-                .await
-            )
+            let out = if hanabi.playing_users.contains(&u) {
+                "Oh, so you're confused? I'm so sorry to hear that.\n\
+                 \n\
+                 On your turn, you can `play`, `discard`, or `clue`. \
+                 If you `play` or `discard`, you must also specify which card using \
+                 the card's position from the left-hand side, starting at one. \
+                 To `clue`, you give the player you are cluing (`@player`), \
+                 and the clue you want to give (e.g., `red`, `one`).\n\
+                 \n\
+                 To look around, you can use `hands`, `deck`, or `discards`. \
+                 `hands` will tell you what each player has and knows, `deck` will \
+                 show you the number of cards left, and `discards` will show \
+                 you the discard pile. If everything goes south, you can always use \
+                 `quit` to give up.\n\
+                 \n\
+                 Should you no longer wish to play, write `leave`.\n\
+                 \n\
+                 If you want more information, try \
+                 https://github.com/jonhoo/hanabot."
+            } else {
+                "Welcome to the game Hanabi!
+                 \n\
+                 All gameplay happens through your interactions with this bot. \n\
+                 To indicate your interest in joining a game, type `join`. \n\
+                 Once you've done so, you can type `help` again to get game-specific help. \n\
+                 \n\
+                 If you want more information, try \
+                 https://en.wikipedia.org/wiki/Hanabi_(card_game) or \
+                 https://github.com/jonhoo/hanabot."
+            };
+            cli.chat_post_message(&SlackApiChatPostMessageRequest::new(
+                SlackChannelId(u.to_string()),
+                SlackMessageContent::new().with_text(String::from(out)),
+            ))
+            .await
             .context("send help message")?;
         }
         _ => {

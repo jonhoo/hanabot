@@ -10,27 +10,34 @@ another.
  0. Download and install [Rust](https://www.rust-lang.org/).
  1. Create a new Slack App [here](https://api.slack.com/apps). When it
     asks you how you want it to create the app, select "From Manifest",
-    and paste in the JSON from `slack-manifest.json`. Hit "Save
-    Changes".
+    and paste in the JSON from `slack-manifest.json`.
  2. Go to the "App Home" tab, and under "Show Tabs", check the box that
     says "Allow users to send ..." so that users can DM the bot.
  3. Go to the "Basic Information" tab, and generate an "App-Level
     Token". Give it `connections:write` access so that it can be used
     for socket communication. Copy that token.
- 4. Next, open the "Install App" tab and hit "Install to <Your
-    Workspace>". This will print out a "Bot User OAuth Token". Copy
-    that token as well.
- 5. Run the bot with
+ 4. While you're on that page, go ahead and add `icon.png` as the app's
+    icon and fiddle with its colors (if you want).
+ 5. Next, open the "Install App" tab and hit "Install to <Your
+    Workspace>". If you're an admin for the workspace, this step will
+    take you to the workspace to approve the bot, otherwise, it'll
+    request the bot to be installed by your admins.
+ 6. When the bot is approved, this page will show a "Bot User OAuth
+    Token". Copy that token as well.
+ 7. Finally, run the bot with
 
     ```console
     $ env "SLACK_APP_TOKEN=XXX" "SLACK_API_TOKEN=YYY" cargo run
     ```
 
     where `XXX` is the "App-Level Token" and `YYY` is the "Bot User
-    OAuth Token".
+    OAuth Token". Note that the app persists its state to `state.json`
+    every time a game progresses, and loads that file on startup, so
+    you'll want to run the bot from the same persistent storage each
+    time.
 
-At this point, the bot should make an announcement in `#hanabi` that
-players can join.
+At this point, players should be able to join by messaging the Hanabi
+app with the word "join"!
 
 ## Usage
 
