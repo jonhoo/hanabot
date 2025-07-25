@@ -1,6 +1,6 @@
 [package]
 name = "hanabot"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 description = "A Slack bot that lets you play Hanabi"
 authors = ["Jon Gjengset <jon@thesquareplanet.com>"]
