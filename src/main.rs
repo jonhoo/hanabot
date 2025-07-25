@@ -178,6 +178,7 @@ async fn on_push_event(
                 let mut messages = MessageProxy::new(cli);
                 hanabi.on_player_change(&mut messages);
                 messages.flush().await.context("handle player join")?;
+                hanabi.save().await.context("save on user join")?;
             } else {
                 let _ = cli
                     .chat_post_message(&SlackApiChatPostMessageRequest::new(
@@ -216,6 +217,7 @@ async fn on_push_event(
 
                 // then actually remove
                 hanabi.playing_users.remove(&u);
+                hanabi.save().await.context("save on user leave")?;
             }
         }
         "players" => {
