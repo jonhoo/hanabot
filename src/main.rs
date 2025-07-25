@@ -196,7 +196,10 @@ async fn on_push_event(
 
                 // first make them quit.
                 if hanabi.in_game.contains_key(&u) {
-                    hanabi.handle_move(&u, "quit", &mut messages).await;
+                    hanabi
+                        .handle_move(&u, "quit", &mut messages)
+                        .await
+                        .context("handle mid-game departure")?;
                 }
 
                 // then make them not wait anymore.
@@ -295,7 +298,10 @@ async fn on_push_event(
             }
 
             let mut messages = MessageProxy::new(cli);
-            hanabi.handle_move(&u, t, &mut messages).await;
+            hanabi
+                .handle_move(&u, t, &mut messages)
+                .await
+                .with_context(|| format!("handle move '{t}'"))?;
             messages.flush().await.context("handle game play message")?;
         }
     }
@@ -429,7 +435,7 @@ impl Hanabi {
         user: Option<&SlackUserId>,
         users: Option<usize>,
         msgs: &mut MessageProxy<'_>,
-    ) {
+    ) -> eyre::Result<()> {
         let mut players = Vec::new();
 
         if let Some(u) = user {
@@ -441,7 +447,7 @@ impl Hanabi {
                 self.waiting.append(&mut following);
             } else {
                 // that user isn't waiting, so do nothing
-                return;
+                return Ok(());
             }
         }
 
@@ -463,7 +469,7 @@ impl Hanabi {
                 );
             }
             self.waiting.extend(players);
-            return;
+            return Ok(());
         }
 
         let game = Game::new(players.iter().map(|slack_user| &*slack_user.0));
@@ -496,11 +502,19 @@ impl Hanabi {
             assert_eq!(already_in, None);
         }
 
-        self.progress_game(game_id, msgs).await;
+        self.progress_game(game_id, msgs)
+            .await
+            .context("progress game")?;
+        Ok(())
     }
 
     /// Handle a turn command by the given `user`.
-    async fn handle_move(&mut self, user: &SlackUserId, text: &str, msgs: &mut MessageProxy<'_>) {
+    async fn handle_move(
+        &mut self,
+        user: &SlackUserId,
+        text: &str,
+        msgs: &mut MessageProxy<'_>,
+    ) -> eyre::Result<()> {
         let mut command = text.split_whitespace().peekable();
 
         if command
@@ -510,7 +524,7 @@ impl Hanabi {
         {
             if self.in_game.contains_key(user) {
                 // game has already started, so ignore this
-                return;
+                return Ok(());
             }
 
             let _ = command.next().is_some();
@@ -521,12 +535,14 @@ impl Hanabi {
                     &user.0,
                     "You can only give an integral number of players to start a game with",
                 );
-                return;
+                return Ok(());
             }
 
             // the user wants to start the game even though there aren't enough players
-            self.start_game(Some(user), nplayers, msgs).await;
-            return;
+            self.start_game(Some(user), nplayers, msgs)
+                .await
+                .context("start game")?;
+            return Ok(());
         }
 
         let game_id = if let Some(game_id) = self.in_game.get(user) {
@@ -536,7 +552,7 @@ impl Hanabi {
                 &user.0,
                 "You're not currently in any games, and thus can't make a move.",
             );
-            return;
+            return Ok(());
         };
 
         let cmd = match command.peek() {
@@ -555,7 +571,7 @@ impl Hanabi {
                         &user.0,
                         &format!("It's not your turn yet, it's <@{}>'s.", current),
                     );
-                    return;
+                    return Ok(());
                 }
             }
         }
@@ -609,7 +625,7 @@ impl Hanabi {
                          a card specifier (e.g., \"red\" or \"one\"), \
                          and nothing else.",
                     );
-                    return;
+                    return Ok(());
                 }
                 let player = player.unwrap();
                 let specifier = specifier.unwrap();
@@ -630,7 +646,7 @@ impl Hanabi {
                             &user.0,
                             &format!("You're making no sense. A card can't be {}...", s),
                         );
-                        return;
+                        return Ok(());
                     }
                 };
 
@@ -645,7 +661,7 @@ impl Hanabi {
                             "The player you specified does not exist. \
                              Remember to use Slack's @username tagging.",
                         );
-                        return;
+                        return Ok(());
                     }
                     Err(hanabi::ClueError::NoMatchingCards) => {
                         msgs.send(
@@ -653,18 +669,20 @@ impl Hanabi {
                             "The card you specified is not in your hand. \
                              Remember that card indexing starts at 1.",
                         );
-                        return;
+                        return Ok(());
                     }
                     Err(hanabi::ClueError::NotEnoughClues) => {
                         msgs.send(
                             &user.0,
                             "There are no clue tokens left, so you cannot clue.",
                         );
-                        return;
+                        return Ok(());
                     }
                     Err(hanabi::ClueError::GameOver) => {}
                 }
-                self.progress_game(game_id, msgs).await;
+                self.progress_game(game_id, msgs)
+                    .await
+                    .context("progress game after clue")?;
             }
             Some("play") => {
                 let card = command.next().and_then(|card| card.parse::<usize>().ok());
@@ -675,7 +693,7 @@ impl Hanabi {
                          To play, you just specify which card you'd like to play by specifying \
                          its index from the left side of your hand (starting at 1).",
                     );
-                    return;
+                    return Ok(());
                 }
 
                 match self
@@ -691,11 +709,13 @@ impl Hanabi {
                             "The card you specified is not in your hand. \
                              Remember that card indexing starts at 1.",
                         );
-                        return;
+                        return Ok(());
                     }
                     Err(hanabi::PlayError::GameOver) => {}
                 }
-                self.progress_game(game_id, msgs).await;
+                self.progress_game(game_id, msgs)
+                    .await
+                    .context("progress game after play")?;
             }
             Some("discard") => {
                 let card = command.next().and_then(|card| card.parse::<usize>().ok());
@@ -706,7 +726,7 @@ impl Hanabi {
                          To discard, you must specify which card you'd like to play by specifying \
                          its index from the left side of your hand (starting at 1).",
                     );
-                    return;
+                    return Ok(());
                 }
 
                 match self
@@ -722,18 +742,20 @@ impl Hanabi {
                             "The card you specified is not in your hand. \
                              Remember that card indexing starts at 1.",
                         );
-                        return;
+                        return Ok(());
                     }
                     Err(hanabi::DiscardError::MaxClues) => {
                         msgs.send(
                             &user.0,
                             "All 8 clue tokens are available, so discard is disallowed.",
                         );
-                        return;
+                        return Ok(());
                     }
                     Err(hanabi::DiscardError::GameOver) => {}
                 }
-                self.progress_game(game_id, msgs).await;
+                self.progress_game(game_id, msgs)
+                    .await
+                    .context("progress game after discard")?;
             }
             Some(cmd) => {
                 msgs.send(
@@ -748,6 +770,8 @@ impl Hanabi {
                 msgs.send(&user.0, "You must either clue, play, or discard.");
             }
         }
+
+        Ok(())
     }
 
     /// Called to progress the state of a game after a turn has been taken.
