@@ -272,7 +272,7 @@ async fn on_push_event(
                  Should you no longer wish to play, write `leave`.\n\
                  \n\
                  If you want more information, try \
-                 https://github.com/jonhoo/hanabot."
+                 <https://github.com/jonhoo/hanabot>."
             } else {
                 "Welcome to the game Hanabi!
                  \n\
@@ -281,13 +281,16 @@ async fn on_push_event(
                  Once you've done so, you can type `help` again to get game-specific help. \n\
                  \n\
                  If you want more information, try \
-                 https://en.wikipedia.org/wiki/Hanabi_(card_game) or \
-                 https://github.com/jonhoo/hanabot."
+                 <https://en.wikipedia.org/wiki/Hanabi_(card_game)> or \
+                 <https://github.com/jonhoo/hanabot>."
             };
-            cli.chat_post_message(&SlackApiChatPostMessageRequest::new(
-                SlackChannelId(u.to_string()),
-                SlackMessageContent::new().with_text(String::from(out)),
-            ))
+            cli.chat_post_message(
+                &SlackApiChatPostMessageRequest::new(
+                    SlackChannelId(u.to_string()),
+                    SlackMessageContent::new().with_text(String::from(out)),
+                )
+                .without_unfurl_links(),
+            )
             .await
             .context("send help message")?;
         }
@@ -296,6 +299,14 @@ async fn on_push_event(
                 // known user made a move
             } else {
                 // unknown user made move that wasn't `join`
+                // let's tell them
+                let out = "I have no idea what you mean. Try `help` :)";
+                cli.chat_post_message(&SlackApiChatPostMessageRequest::new(
+                    SlackChannelId(u.to_string()),
+                    SlackMessageContent::new().with_text(String::from(out)),
+                ))
+                .await
+                .context("send message to confused user")?;
                 return Ok(());
             }
 
