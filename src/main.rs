@@ -144,7 +144,7 @@ async fn on_push_event(
     let Some(c) = m.origin.channel else {
         return Ok(());
     };
-    if !m.origin.channel_type.is_some_and(|ct| ct.0 == "im") {
+    if m.origin.channel_type.is_none_or(|ct| ct.0 != "im") {
         return Ok(());
     }
 
@@ -398,7 +398,7 @@ impl<'a> MessageProxy<'a> {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 struct Hanabi {
     /// id of the bot's user
     me: String,
@@ -422,22 +422,6 @@ struct Hanabi {
     in_game: HashMap<SlackUserId, usize>,
 }
 
-impl Default for Hanabi {
-    fn default() -> Self {
-        Hanabi {
-            me: String::new(),
-            channel: String::new(),
-
-            playing_users: Default::default(),
-            waiting: Default::default(),
-
-            ngames: 0,
-            games: Default::default(),
-            in_game: Default::default(),
-        }
-    }
-}
-
 impl Hanabi {
     pub async fn save(&self) -> eyre::Result<()> {
         let state = serde_json::to_vec(self).context("serialize Hanabi state")?;
@@ -456,7 +440,6 @@ impl Hanabi {
             }
             1 => {
                 // can't start a game yet
-                return;
             }
             _ => {
                 // *could* start a game if the users are ready
@@ -469,7 +452,6 @@ impl Hanabi {
                 for p in &self.waiting {
                     msgs.send(&p.0, &message);
                 }
-                return;
             }
         }
     }
@@ -537,7 +519,7 @@ impl Hanabi {
             let others: Vec<_> = players
                 .iter()
                 .filter(|&player| player != p)
-                .map(|player| format!("<@{}>", player))
+                .map(|player| format!("<@{player}>"))
                 .collect();
             let message = format!(
                 "You are now in a game with {} other players: {}",
@@ -610,7 +592,7 @@ impl Hanabi {
         };
         let cmd = cmd.or_else(|| command.next());
         let cmd = cmd.map(|cmd| cmd.to_lowercase());
-        let cmd = cmd.as_ref().map(|cmd| cmd.as_str());
+        let cmd = cmd.as_deref();
 
         if let Some(cmd) = cmd {
             if cmd == "play" || cmd == "clue" || cmd == "discard" {
@@ -618,7 +600,7 @@ impl Hanabi {
                 if current != user.0 {
                     msgs.send(
                         &user.0,
-                        &format!("It's not your turn yet, it's <@{}>'s.", current),
+                        &format!("It's not your turn yet, it's <@{current}>'s."),
                     );
                     return Ok(());
                 }
@@ -632,8 +614,7 @@ impl Hanabi {
                     msgs.send(
                         player,
                         &format!(
-                            "The game was ended prematurely by <@{}> with a score of {}/25",
-                            user, score
+                            "The game was ended prematurely by <@{user}> with a score of {score}/25"
                         ),
                     );
                 }
@@ -647,11 +628,8 @@ impl Hanabi {
                         "It's your turn... No need to bother the other players.",
                     );
                 } else {
-                    msgs.send(
-                        current,
-                        &format!("<@{}> pinged you -- it's your turn.", user),
-                    );
-                    msgs.send(&user.0, &format!("I've pinged <@{}>.", current));
+                    msgs.send(current, &format!("<@{user}> pinged you -- it's your turn."));
+                    msgs.send(&user.0, &format!("I've pinged <@{current}>."));
                 }
             }
             Some("discards") => {
@@ -693,7 +671,7 @@ impl Hanabi {
                     s => {
                         msgs.send(
                             &user.0,
-                            &format!("You're making no sense. A card can't be {}...", s),
+                            &format!("You're making no sense. A card can't be {s}..."),
                         );
                         return Ok(());
                     }
@@ -810,8 +788,7 @@ impl Hanabi {
                 msgs.send(
                     &user.0,
                     &format!(
-                        "What do you mean \"{}\"?! You must either clue, play, or discard.",
-                        cmd
+                        "What do you mean \"{cmd}\"?! You must either clue, play, or discard."
                     ),
                 );
             }
@@ -858,18 +835,18 @@ impl Hanabi {
 
     fn desc_game(&self, game_id: usize) -> String {
         let game = &self.games[&game_id];
-        let mut players: Vec<_> = game.players().map(|p| format!("<@{}>", p)).collect();
+        let mut players: Vec<_> = game.players().map(|p| format!("<@{p}>")).collect();
         players.pop();
         let mut players = players.join(", ");
         players.push_str(
             &game
                 .players()
                 .last()
-                .map(|p| format!(", and <@{}>", p))
+                .map(|p| format!(", and <@{p}>"))
                 .unwrap(),
         );
 
-        format!("Game with {}", players)
+        format!("Game with {players}")
     }
 
     /// Called to end a game.

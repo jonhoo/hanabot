@@ -106,8 +106,8 @@ pub(crate) enum Clue {
 impl fmt::Display for Clue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Clue::Color(ref c) => write!(f, "{}", c),
-            Clue::Number(ref n) => write!(f, "{}", n),
+            Clue::Color(ref c) => write!(f, "{c}"),
+            Clue::Number(ref n) => write!(f, "{n}"),
         }
     }
 }
@@ -140,7 +140,7 @@ impl Card {
         });
 
         match (know_color, know_number) {
-            (false, false) => format!(":rainbow: :keycap_star:"),
+            (false, false) => ":rainbow: :keycap_star:".to_string(),
             (false, true) => format!(":rainbow: {}", self.number),
             (true, false) => format!("{} :keycap_star:", self.color),
             (true, true) => format!("{} {}", self.color, self.number),
@@ -171,7 +171,7 @@ impl Deck {
 
 impl Default for Deck {
     fn default() -> Self {
-        let numbers = vec![
+        let numbers = [
             Number::One,
             Number::One,
             Number::One,

@@ -30,7 +30,7 @@ fn dur(t: Result<Duration, SystemTimeError>) -> String {
     } else if t > 60 {
         format!("{} minutes", t / 60)
     } else {
-        format!("{} seconds", t)
+        format!("{t} seconds")
     }
 }
 
@@ -59,9 +59,9 @@ impl Move {
 
     pub fn show_to(&self, player: usize) -> &str {
         if player == self.player {
-            &*self.for_public
+            &self.for_public
         } else {
-            &*self.for_others
+            &self.for_others
         }
     }
 }
@@ -88,10 +88,7 @@ impl Game {
     /// Start a new game for the given players with a freshly shuffled deck.
     pub(crate) fn new<'a>(players: impl IntoIterator<Item = &'a str>) -> Self {
         let mut deck = Deck::default();
-        let mut hands: Vec<_> = players
-            .into_iter()
-            .map(|player| Hand::new(player))
-            .collect();
+        let mut hands: Vec<_> = players.into_iter().map(Hand::new).collect();
         let cards = match hands.len() {
             0 | 1 => unreachable!(),
             2 | 3 => 5,
@@ -126,7 +123,7 @@ impl Game {
 
     /// Current total score of this game.
     pub(crate) fn score(&self) -> usize {
-        self.played.iter().map(|(_, num)| num.as_usize()).sum()
+        self.played.values().map(|num| num.as_usize()).sum()
     }
 
     /// Enumerate the usernames of the players in this game.
@@ -136,7 +133,7 @@ impl Game {
 
     /// Get the username of the player whose turn it is.
     pub(crate) fn current_player(&self) -> &str {
-        &*self.hands[self.turn].player
+        &self.hands[self.turn].player
     }
 
     /// Have the current player give `clue` to `to`.
@@ -152,7 +149,7 @@ impl Game {
         }
 
         let hands = self.hands.len();
-        let hand = if let Some(h) = self.hands.iter_mut().find(|hand| &hand.player == to) {
+        let hand = if let Some(h) = self.hands.iter_mut().find(|hand| hand.player == to) {
             h
         } else {
             return Err(ClueError::NoSuchPlayer);
@@ -235,7 +232,7 @@ impl Game {
                     card,
                     dur_mod(&mut self.last_move_at),
                 );
-                self.last_move = Move::new(self.turn, did.clone(), format!("{}{}", did, drew));
+                self.last_move = Move::new(self.turn, did.clone(), format!("{did}{drew}"));
 
                 self.discarded(card);
 
@@ -249,7 +246,7 @@ impl Game {
                     card,
                     dur_mod(&mut self.last_move_at),
                 );
-                self.last_move = Move::new(self.turn, did.clone(), format!("{}{}", did, drew));
+                self.last_move = Move::new(self.turn, did.clone(), format!("{did}{drew}"));
             }
 
             self.turn = (self.turn + 1) % hands;
@@ -293,7 +290,7 @@ impl Game {
                 card,
                 dur_mod(&mut self.last_move_at),
             );
-            self.last_move = Move::new(self.turn, did.clone(), format!("{}{}", did, drew));
+            self.last_move = Move::new(self.turn, did.clone(), format!("{did}{drew}"));
 
             self.discarded(card);
             self.clues += 1;
@@ -317,7 +314,7 @@ impl Game {
         let me = self
             .hands
             .iter()
-            .position(|hand| &hand.player == user)
+            .position(|hand| hand.player == user)
             .unwrap();
 
         cli.send(user, "The other players' hands (in turn order) are:");
@@ -334,7 +331,7 @@ impl Game {
             let (cards, known): (Vec<_>, Vec<_>) = self.hands[hand]
                 .cards
                 .iter()
-                .map(|card| (format!("{}", card), card.known()))
+                .map(|card| (format!("{card}"), card.known()))
                 .unzip();
 
             if hand == me {
@@ -364,7 +361,7 @@ impl Game {
         cli.send(user, "The discard pile contains the following cards:");
         for color in &COLOR_ORDER {
             if let Some(cards) = self.discard.get(color) {
-                let mut out = format!("{} ", color);
+                let mut out = format!("{color} ");
                 for card in cards {
                     out.push_str(&format!("{}", card.number));
                 }
@@ -422,7 +419,7 @@ impl Game {
 
         // look through the discard pile, and see if all the copies of a given number for any color
         // has been discarded. if so, the game is no longer winnable.
-        for (_, cards) in &self.discard {
+        for cards in self.discard.values() {
             let mut number = cards[0].number;
             let mut n = 0;
             for card in cards {
@@ -449,7 +446,7 @@ impl Game {
     }
 
     pub fn last_move(&self) -> &str {
-        &*self.last_move.for_public
+        &self.last_move.for_public
     }
 
     /// Progress the current game following a turn, and return true if the game has ended.
@@ -469,12 +466,12 @@ impl Game {
                 if m.starts_with("you") {
                     m = m.replacen("you", "You", 1);
                 }
-                let m = format!(".\n:point_right: {}", m);
+                let m = format!(".\n:point_right: {m}");
                 cli.send(&hand.player, &m);
             }
         }
 
-        let points: usize = self.played.iter().map(|(_, num)| num.as_usize()).sum();
+        let points: usize = self.played.values().map(|num| num.as_usize()).sum();
         let mut game_over = self.lives == 0;
         if let Some(last_turns) = self.last_turns {
             game_over = game_over || last_turns == self.hands.len();
@@ -494,7 +491,7 @@ impl Game {
                         self.score_smiley(),
                         hand.cards
                             .iter()
-                            .map(|c| format!("{}", c))
+                            .map(|c| format!("{c}"))
                             .collect::<Vec<_>>()
                             .join("  |  ")
                     ),
@@ -529,7 +526,7 @@ impl Game {
     /// Called whenever a card is discarded.
     fn discarded(&mut self, card: Card) {
         // insert into sorted discard list for that color
-        let d = self.discard.entry(card.color).or_insert_with(Vec::new);
+        let d = self.discard.entry(card.color).or_default();
         let pos = d
             .binary_search_by_key(&card.number.as_usize(), |c| c.number.as_usize())
             .unwrap_or_else(|e| e);
@@ -548,7 +545,7 @@ impl Game {
         };
 
         let setup = if self.turn == hand {
-            format!("It's *your*{} turn", last)
+            format!("It's *your*{last} turn")
         } else {
             format!("It's <@{}>'s{} turn", self.hands[self.turn].player, last)
         };
@@ -576,9 +573,9 @@ impl Game {
             .iter()
             .map(|&color| {
                 if let Some(top) = self.played.get(&color) {
-                    format!("{} {}", color, top)
+                    format!("{color} {top}")
                 } else {
-                    format!("{} :zero:", color)
+                    format!("{color} :zero:")
                 }
             })
             .collect();
