@@ -638,11 +638,11 @@ impl Hanabi {
                     "white" => Clue::Color(Color::White),
                     "blue" => Clue::Color(Color::Blue),
                     "yellow" => Clue::Color(Color::Yellow),
-                    "one" => Clue::Number(Number::One),
-                    "two" => Clue::Number(Number::Two),
-                    "three" => Clue::Number(Number::Three),
-                    "four" => Clue::Number(Number::Four),
-                    "five" => Clue::Number(Number::Five),
+                    "one" | "1" => Clue::Number(Number::One),
+                    "two" | "2" => Clue::Number(Number::Two),
+                    "three" | "3" => Clue::Number(Number::Three),
+                    "four" | "4" => Clue::Number(Number::Four),
+                    "five" | "5" => Clue::Number(Number::Five),
                     s => {
                         msgs.send(
                             &user.0,
