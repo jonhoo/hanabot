@@ -156,7 +156,24 @@ async fn on_push_event(
     let mut hanabi = state.hanabi.lock().await;
     let cli = client.open_session(&state.api_token);
 
-    match &*t.to_lowercase() {
+    let Some(command) = t.split_whitespace().next() else {
+        // empty message
+        return Ok(());
+    };
+
+    if command.starts_with("<@") {
+        let _ = cli
+            .chat_post_message(&SlackApiChatPostMessageRequest::new(
+                c,
+                SlackMessageContent::new().with_text(format!(
+                    "You don't need to prefix your commands with {command} when DMing me :)",
+                )),
+            ))
+            .await;
+        return Ok(());
+    }
+
+    match &*command.to_lowercase() {
         "join" => {
             if hanabi.playing_users.insert(u.clone()) {
                 cli.chat_post_message(&SlackApiChatPostMessageRequest::new(
@@ -179,6 +196,15 @@ async fn on_push_event(
                 hanabi.on_player_change(&mut messages);
                 messages.flush().await.context("handle player join")?;
                 hanabi.save().await.context("save on user join")?;
+            } else if hanabi.waiting.contains(&u) {
+                let _ = cli
+                    .chat_post_message(&SlackApiChatPostMessageRequest::new(
+                        c,
+                        SlackMessageContent::new().with_text(String::from(
+                            "You can start a game with `start` once there are enough players available.",
+                        )),
+                    ))
+                    .await;
             } else {
                 let _ = cli
                     .chat_post_message(&SlackApiChatPostMessageRequest::new(
@@ -295,8 +321,18 @@ async fn on_push_event(
             .context("send help message")?;
         }
         _ => {
-            if hanabi.playing_users.contains(&u) {
-                // known user made a move
+            if hanabi.in_game.contains_key(&u) {
+                // known user made a move in a game
+            } else if hanabi.playing_users.contains(&u) {
+                // known user made a move, but isn't in a game
+                let _ = cli
+                    .chat_post_message(&SlackApiChatPostMessageRequest::new(
+                        c,
+                        SlackMessageContent::new().with_text(String::from(
+                            "You're not in a game at the moment, so can't make a move.",
+                        )),
+                    ))
+                    .await;
             } else {
                 // unknown user made move that wasn't `join`
                 // let's tell them
