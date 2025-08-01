@@ -14,6 +14,8 @@ coverage:
 # Test files aren't important for coverage
 ignore:
   - "tests"
+  - "src/main.rs"
+  - "src/bin/stdio.rs"
 
 # Make comments less noisy
 comment:
