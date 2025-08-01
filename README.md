@@ -1,9 +1,42 @@
+[![codecov](https://codecov.io/gh/jonhoo/hanabot/graph/badge.svg?token=4BsMdqBufW)](https://codecov.io/gh/jonhoo/hanabot)
+
 This is a Slack [bot](https://api.slack.com/bot-users) that allows users
 to play the cooperative card game
 [Hanabi](https://en.wikipedia.org/wiki/Hanabi_(card_game)) with one
 another.
 
 ![Slack gameplay screenshot](preview.png)
+
+## Testing it locally
+
+```console
+$ cargo run --bin stdio
+1: help
+@1 Welcome to the game Hanabi!
+@1
+@1 All gameplay happens through your interactions with this bot.
+@1 To indicate your interest in joining a game, type `join`.
+@1 Once you've done so, you can type `help` again to get game-specific help.
+@1
+@1 If you want more information, try <https://en.wikipedia.org/wiki/Hanabi_(card_game)> or <https://github.com/jonhoo/hanabot>.
+
+1: join
+user 1 joined game
+@1 Welcome! I'll get you started with a game as soon as there are some other players available.
+
+2: join
+user 2 joined game
+@2 Welcome! I'll get you started with a game as soon as there are some other players available.
+@2 I have 1 other available players, so we can start a game.
+@2 Use `start` to do so. You can optionally pass the number of players to include.
+@1 I have 1 other available players, so we can start a game.
+@1 Use `start` to do so. You can optionally pass the number of players to include.
+
+1: start
+starting game #1 with 2 users: [SlackUserId("1"), SlackUserId("2")]
+@1 You are now in a game with 1 other players: <@2>
+@1 :hourglass: It's *your* turn; *8* :information_source: and 3 :bomb: remain.
+```
 
 ## Installation
 
