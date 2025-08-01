@@ -49,6 +49,10 @@ impl StdoutMessageProxy {
             }
         }
 
+        stdout
+            .write(b"\n")
+            .await
+            .context("write separator after output")?;
         stdout.flush().await.context("flush bufwriter")?;
 
         Ok(())
