@@ -310,7 +310,12 @@ impl Game {
     }
 
     /// Show `user` every other player's hand + what they know.
-    pub(crate) fn show_hands(&self, user: &str, skip_self: bool, cli: &mut super::MessageProxy) {
+    pub(crate) fn show_hands(
+        &self,
+        user: &str,
+        skip_self: bool,
+        cli: &mut impl super::MessageProxy,
+    ) {
         let me = self
             .hands
             .iter()
@@ -352,7 +357,7 @@ impl Game {
     }
 
     /// Show `user` the current state of the discard pile.
-    pub(crate) fn show_discards(&self, user: &str, cli: &mut super::MessageProxy) {
+    pub(crate) fn show_discards(&self, user: &str, cli: &mut impl super::MessageProxy) {
         if self.discard.is_empty() {
             cli.send(user, "The discard pile is empty.");
             return;
@@ -371,7 +376,7 @@ impl Game {
     }
 
     /// Show `user` the current state of the deck.
-    pub(crate) fn show_deck(&self, user: &str, cli: &mut super::MessageProxy) {
+    pub(crate) fn show_deck(&self, user: &str, cli: &mut impl super::MessageProxy) {
         if self.deck.is_empty() {
             cli.send(user, "The deck is depleted.");
             return;
@@ -456,7 +461,7 @@ impl Game {
     ///
     /// This *could* be called automatially internally, but it'd make the return types of all the
     /// action methods somewhat annoying.
-    pub(crate) fn progress_game(&mut self, cli: &mut super::MessageProxy) -> bool {
+    pub(crate) fn progress_game(&mut self, cli: &mut impl super::MessageProxy) -> bool {
         if !self.last_move.show_to(0).is_empty() {
             for (i, hand) in self.hands.iter().enumerate() {
                 let mut m = self
@@ -536,7 +541,7 @@ impl Game {
     /// Show the `hand`'th player the current game state.
     ///
     /// Note that the information displayed depends on whether or not it is `hand`'s turn.
-    fn print_game_state(&mut self, hand: usize, cli: &mut super::MessageProxy) {
+    fn print_game_state(&mut self, hand: usize, cli: &mut impl super::MessageProxy) {
         let user = &self.hands[hand].player;
         let last = if self.last_turns.is_some() {
             " *last*"
@@ -560,13 +565,20 @@ impl Game {
         );
 
         if !self.deck.is_empty() && self.deck.len() < 2 * self.hands.len() {
-            cli.send(
-                user,
-                &format!(
-                    ":warning: *There are only {} cards left in the deck!*",
-                    self.deck.len()
+            match self.deck.len() {
+                0 => cli.send(
+                    user,
+                    ":warning: *There are no cards left in the deck, so this is the last round!*",
                 ),
-            );
+                1 => cli.send(
+                    user,
+                    ":warning: *There is only a single card left in the deck!*",
+                ),
+                n => cli.send(
+                    user,
+                    &format!(":warning: *There are only {n} cards left in the deck!*",),
+                ),
+            }
         }
 
         let stacks: Vec<_> = COLOR_ORDER
