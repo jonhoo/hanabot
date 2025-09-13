@@ -101,7 +101,7 @@ jobs:
           toolchain: stable
           components: llvm-tools-preview
       - name: cargo install cargo-llvm-cov
-        uses: taiki-e/install-action@c0dee14250395ae6b1754a99f67c1d693138b102 # tag=v2.58.30
+        uses: taiki-e/install-action@67cc679904bee382389bf22082124fa963c6f6bd # tag=v2.61.3
         with:
           tool: cargo-llvm-cov
       - name: cargo generate-lockfile
@@ -112,7 +112,7 @@ jobs:
       - name: Record Rust version
         run: echo "RUST=$(rustc --version)" >> "$GITHUB_ENV"
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@fdcc8476540edceab3de004e990f80d881c6cc00 # tag=v5.5.0
+        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # tag=v5.5.1
         with:
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
