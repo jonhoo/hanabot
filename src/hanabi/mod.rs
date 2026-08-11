@@ -341,15 +341,15 @@ impl Game {
 
             if hand == me {
                 if !skip_self {
-                    cli.send(user, &format!("{} known", &known.join("  |  ")));
+                    cli.send(user, &format!("{} known", known.join("  |  ")));
                 }
             } else {
                 cli.send(
                     user,
                     &format!(
                         "{} in hand\n{} known",
-                        &cards.join("  |  "),
-                        &known.join("  |  ")
+                        cards.join("  |  "),
+                        known.join("  |  ")
                     ),
                 );
             }
